@@ -6,224 +6,173 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="apple-mobile-web-app-title" content="Strong Base"/>
-<meta name="theme-color" content="#0A0A0A"/>
+<meta name="theme-color" content="#0C0C0E"/>
 <title>Strong Base</title>
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;600;700;800;900&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
-body{background:#0A0A0A;color:#fff;font-family:'Barlow Condensed',sans-serif;max-width:430px;margin:0 auto;min-height:100vh;overflow-x:hidden;}
+html,body{height:100%;overflow-x:hidden;}
+body{background:#0C0C0E;color:#fff;font-family:'Inter',sans-serif;max-width:430px;margin:0 auto;min-height:100vh;}
 input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;}
 input[type=number]{-moz-appearance:textfield;}
-input,textarea,select{font-family:'Barlow',sans-serif;}
 ::-webkit-scrollbar{display:none;}
-.lt{--bg:#F2F2ED;--bg2:#E8E8E2;--card:#fff;--card2:#EBEBЕ5;--bd:#ddd;--tx:#111;--tx2:#555;--tx3:#999;}
-.dk{--bg:#0A0A0A;--bg2:#0f0f0f;--card:#111;--card2:#181818;--bd:#222;--tx:#fff;--tx2:#aaa;--tx3:#555;}
-body{background:var(--bg);color:var(--tx);}
+button,input{font-family:'Inter',sans-serif;}
 </style>
 </head>
-<body class="dk">
+<body>
 <div id="root"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
-<script type="text/babel">
+<script type="text/babel" data-presets="react">
 const { useState, useEffect, useRef, useCallback } = React;
-const A = "#E8FF47"; // accent
-const AD = "#b5c934";
-const SK = "sb_v3";
 
-// ─────────────────────────────────────────────
-// EXERCISE LIBRARY
-// ─────────────────────────────────────────────
-const LIBRARY = [
-  // PECHO
-  { id:"lb01", name:"Press Banca", group:"Pecho", muscle:"Pecho · Tríceps · Hombros", type:"barra", sets:4, reps:8, weight:60, rest:120, image:"https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=600&q=80", cues:["Escápulas retraídas","Barra al esternón","Pies firmes en el suelo"] },
-  { id:"lb02", name:"Press Inclinado Barra", group:"Pecho", muscle:"Pecho alto · Tríceps", type:"barra", sets:4, reps:8, weight:50, rest:120, image:"https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?w=600&q=80", cues:["Banco a 30-45°","Baja al pecho alto","Control en la bajada"] },
-  { id:"lb03", name:"Press Banca Mancuernas", group:"Pecho", muscle:"Pecho · Tríceps", type:"mancuerna", sets:4, reps:10, weight:10, rest:90, image:"https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=600&q=80", cues:["Rango completo","Junta mancuernas arriba","Control en bajada"], isMancuerna:true },
-  { id:"lb04", name:"Press Inclinado Mancuernas", group:"Pecho", muscle:"Pecho alto · Hombros", type:"mancuerna", sets:3, reps:10, weight:10, rest:90, image:"https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?w=600&q=80", cues:["Banco 30-45°","Empuja y junta al tope"], isMancuerna:true },
-  { id:"lb05", name:"Aperturas con Goma", group:"Pecho", muscle:"Pecho · Deltoides anterior", type:"goma", sets:3, reps:15, weight:0, rest:60, image:"https://images.unsplash.com/photo-1598971457999-ca4ef48a9a71?w=600&q=80", cues:["Ancla goma al rack","Brazos semiestirados","Contrae el pecho al centro"], isGoma:true },
-  // ESPALDA
-  { id:"lb06", name:"Peso Muerto", group:"Espalda", muscle:"Espalda baja · Isquios · Glúteos", type:"barra", sets:4, reps:5, weight:80, rest:180, image:"https://images.unsplash.com/photo-1534367507873-d2d7e24c797f?w=600&q=80", cues:["Espalda neutra","Barra pegada al cuerpo","Empuja el suelo"] },
-  { id:"lb07", name:"Remo con Barra", group:"Espalda", muscle:"Dorsal · Romboides · Bíceps", type:"barra", sets:4, reps:8, weight:50, rest:120, image:"https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?w=600&q=80", cues:["Torso a 45°","Tira al ombligo","Aprieta espalda arriba"] },
-  { id:"lb08", name:"Dominadas", group:"Espalda", muscle:"Dorsal · Bíceps · Core", type:"corporal", sets:4, reps:6, weight:0, rest:120, image:"https://images.unsplash.com/photo-1718043468852-69b2d45e0603?w=600&q=80", cues:["Activa dorsal antes de subir","Pecho a la barra","Baja con control"], isCuerpo:true },
-  { id:"lb09", name:"Remo Mancuerna", group:"Espalda", muscle:"Dorsal · Romboides · Bíceps", type:"mancuerna", sets:4, reps:10, weight:12.5, rest:90, image:"https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?w=600&q=80", cues:["Rodilla y mano en banco","Tira a la cadera","Codo pegado al cuerpo"], isMancuerna:true },
-  { id:"lb10", name:"Remo con Goma", group:"Espalda", muscle:"Dorsal · Romboides", type:"goma", sets:3, reps:15, weight:0, rest:60, image:"https://images.unsplash.com/photo-1604480132736-44c188fe4d20?w=600&q=80", cues:["Ancla goma al rack bajo","Tira con los codos","Aprieta espalda al final"], isGoma:true },
-  // HOMBROS
-  { id:"lb11", name:"Press Militar", group:"Hombros", muscle:"Deltoides · Tríceps · Core", type:"barra", sets:4, reps:6, weight:40, rest:120, image:"https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?w=600&q=80", cues:["De pie, core apretado","Barra desde clavículas","Empuja arriba y atrás"] },
-  { id:"lb12", name:"Press Arnold", group:"Hombros", muscle:"Deltoides completo · Tríceps", type:"mancuerna", sets:4, reps:10, weight:10, rest:90, image:"https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?w=600&q=80", cues:["Banco 90°","Palmas hacia ti al inicio","Gira al subir"], isMancuerna:true },
-  { id:"lb13", name:"Elevaciones Laterales", group:"Hombros", muscle:"Deltoides lateral", type:"mancuerna", sets:3, reps:15, weight:7.5, rest:60, image:"https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?w=600&q=80", cues:["Codos ligeramente flexionados","Sube hasta altura del hombro","Baja con control"], isMancuerna:true },
-  { id:"lb14", name:"Elevaciones Laterales Goma", group:"Hombros", muscle:"Deltoides lateral", type:"goma", sets:3, reps:15, weight:0, rest:60, image:"https://images.unsplash.com/photo-1598971457999-ca4ef48a9a71?w=600&q=80", cues:["Pisa la goma","Tensión desde abajo","Sube hasta hombro"], isGoma:true },
-  { id:"lb15", name:"Face Pull Goma", group:"Hombros", muscle:"Deltoides posterior · Romboides", type:"goma", sets:3, reps:15, weight:0, rest:60, image:"https://images.unsplash.com/photo-1598971457999-ca4ef48a9a71?w=600&q=80", cues:["Ancla goma altura cabeza","Tira hacia la cara","Codos altos al final"], isGoma:true },
-  // PIERNAS
-  { id:"lb16", name:"Sentadilla", group:"Piernas", muscle:"Cuádriceps · Glúteos · Core", type:"barra", sets:4, reps:6, weight:70, rest:180, image:"https://images.unsplash.com/photo-1566241440091-ec10de8db2e1?w=600&q=80", cues:["Espalda neutra","Rodillas siguen los pies","Baja hasta paralelo"] },
-  { id:"lb17", name:"Peso Muerto Rumano", group:"Piernas", muscle:"Isquiotibiales · Glúteos", type:"barra", sets:4, reps:10, weight:60, rest:120, image:"https://images.unsplash.com/photo-1534367507873-d2d7e24c797f?w=600&q=80", cues:["Piernas casi rectas","Caderas atrás","Barra roza los muslos"] },
-  { id:"lb18", name:"Sentadilla Goblet", group:"Piernas", muscle:"Cuádriceps · Glúteos · Core", type:"mancuerna", sets:3, reps:12, weight:12.5, rest:90, image:"https://images.unsplash.com/photo-1566241440091-ec10de8db2e1?w=600&q=80", cues:["Mancuerna al pecho","Codos dentro de las rodillas","Pecho arriba"], isMancuerna:true },
-  { id:"lb19", name:"Zancadas con Mancuernas", group:"Piernas", muscle:"Cuádriceps · Glúteos · Isquios", type:"mancuerna", sets:3, reps:10, weight:10, rest:90, image:"https://images.unsplash.com/photo-1566241440091-ec10de8db2e1?w=600&q=80", cues:["Rodilla trasera casi al suelo","Torso recto","Empuja con el talón"], isMancuerna:true },
-  { id:"lb20", name:"Hip Thrust Barra", group:"Piernas", muscle:"Glúteos · Isquiotibiales", type:"barra", sets:4, reps:10, weight:60, rest:90, image:"https://images.unsplash.com/photo-1566241440091-ec10de8db2e1?w=600&q=80", cues:["Banco a altura de omóplatos","Empuja con los talones","Aprieta glúteos arriba"] },
-  { id:"lb21", name:"Sentadilla con Goma", group:"Piernas", muscle:"Cuádriceps · Glúteos", type:"goma", sets:3, reps:15, weight:0, rest:60, image:"https://images.unsplash.com/photo-1566241440091-ec10de8db2e1?w=600&q=80", cues:["Pisa la goma","Tensión constante","Sentadilla completa"], isGoma:true },
-  // BÍCEPS
-  { id:"lb22", name:"Curl Barra", group:"Bíceps", muscle:"Bíceps · Braquial", type:"barra", sets:3, reps:10, weight:25, rest:90, image:"https://images.unsplash.com/photo-1581009137042-c552e485697a?w=600&q=80", cues:["Codos fijos al costado","Sin balanceo","Aprieta arriba"] },
-  { id:"lb23", name:"Curl Mancuernas Alterno", group:"Bíceps", muscle:"Bíceps · Braquial", type:"mancuerna", sets:3, reps:10, weight:10, rest:90, image:"https://images.unsplash.com/photo-1581009137042-c552e485697a?w=600&q=80", cues:["Un brazo a la vez","Supina la muñeca al subir","Control en la bajada"], isMancuerna:true },
-  { id:"lb24", name:"Curl Martillo", group:"Bíceps", muscle:"Braquial · Bíceps", type:"mancuerna", sets:3, reps:12, weight:10, rest:60, image:"https://images.unsplash.com/photo-1581009137042-c552e485697a?w=600&q=80", cues:["Agarre neutro","Codos fijos","Aprieta al tope"], isMancuerna:true },
-  { id:"lb25", name:"Curl Goma", group:"Bíceps", muscle:"Bíceps · Braquial anterior", type:"goma", sets:3, reps:15, weight:0, rest:60, image:"https://images.unsplash.com/photo-1604480132736-44c188fe4d20?w=600&q=80", cues:["Pisa la goma","Tensión constante","Codos fijos"], isGoma:true },
-  // TRÍCEPS
-  { id:"lb26", name:"Fondos en Paralelas", group:"Tríceps", muscle:"Tríceps · Pecho bajo", type:"corporal", sets:3, reps:10, weight:0, rest:90, image:"https://images.unsplash.com/photo-1598971457999-ca4ef48a9a71?w=600&q=80", cues:["Torso ligeramente inclinado","Rango completo","Control bajada"], isCuerpo:true },
-  { id:"lb27", name:"Extensión Tríceps Goma", group:"Tríceps", muscle:"Tríceps (cabeza larga)", type:"goma", sets:3, reps:15, weight:0, rest:60, image:"https://images.unsplash.com/photo-1598971457999-ca4ef48a9a71?w=600&q=80", cues:["Ancla goma arriba en rack","Codos fijos","Extiende completamente"], isGoma:true },
-  { id:"lb28", name:"Press Francés Mancuerna", group:"Tríceps", muscle:"Tríceps · Codo", type:"mancuerna", sets:3, reps:12, weight:10, rest:60, image:"https://images.unsplash.com/photo-1598971457999-ca4ef48a9a71?w=600&q=80", cues:["Codos apuntando al techo","Baja detrás de la cabeza","Extiende sin bloquear"], isMancuerna:true },
-  // CORE
-  { id:"lb29", name:"Plancha", group:"Core", muscle:"Core · Estabilizadores", type:"corporal", sets:3, reps:45, weight:0, rest:60, image:"https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=600&q=80", cues:["Cuerpo en línea recta","Glúteos y core apretados","Respira con control"], isCuerpo:true, isTime:true },
-  { id:"lb30", name:"Crunch Banca Inclinada", group:"Core", muscle:"Abdomen superior", type:"corporal", sets:3, reps:15, weight:0, rest:60, image:"https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=600&q=80", cues:["Banco en declive","Sube hasta 45°","Contrae el abdomen"], isCuerpo:true },
-  { id:"lb31", name:"Russian Twist Mancuerna", group:"Core", muscle:"Oblicuos · Core", type:"mancuerna", sets:3, reps:20, weight:7.5, rest:60, image:"https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=600&q=80", cues:["Pies elevados","Rota el torso completo","Toca el suelo cada lado"], isMancuerna:true },
-];
-
-const GROUPS = ["Pecho","Espalda","Hombros","Piernas","Bíceps","Tríceps","Core"];
-const GROUP_COLORS = { Pecho:"#ff6b6b", Espalda:"#4db8ff", Hombros:"#ffb84d", Piernas:"#a78bfa", Bíceps:A, Tríceps:AD, Core:"#34d399" };
-
-// ─────────────────────────────────────────────
-// DEFAULT FULL BODY SESSIONS
-// ─────────────────────────────────────────────
-const mkEx = (libId, overrides={}) => {
-  const base = LIBRARY.find(e=>e.id===libId);
-  return { ...base, ...overrides, libId };
+const C = {
+  bg:"#0C0C0E", surface:"#141416", card:"#1A1A1E", border:"#252528",
+  text:"#FFFFFF", textSec:"#8E8E9A", textMut:"#4A4A56",
+  accent:"#C8FF00", accentDim:"#8FB300",
+  red:"#FF4D4D", green:"#00E676", blue:"#4D9FFF", purple:"#A78BFA", orange:"#FF8C4D",
 };
+const GC = { Pecho:C.blue, Espalda:C.purple, Hombros:C.orange, Piernas:"#FF6B6B", Biceps:C.accent, Triceps:C.accentDim, Core:C.green };
+const SK = "sb_v5";
+const MANCUERNAS = [5,7.5,10,12.5];
+const fmt = s=>`${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
+const vibrate = ms=>{ try{navigator.vibrate&&navigator.vibrate(ms);}catch{} };
+const todayDisp = ()=>new Date().toLocaleDateString("es-ES",{weekday:"short",day:"numeric",month:"short"});
+const dateKey = ()=>new Date().toLocaleDateString("es-ES",{day:"2-digit",month:"2-digit",year:"2-digit"});
 
-const DEFAULT_SESSIONS = [
-  {
-    id:"FB_A", name:"Full Body A", subtitle:"Fuerza base", icon:"🔺",
-    exercises:[
-      mkEx("lb16"), // Sentadilla
-      mkEx("lb01"), // Press Banca
-      mkEx("lb07"), // Remo con Barra
-      mkEx("lb11"), // Press Militar
-      mkEx("lb06"), // Peso Muerto
-      mkEx("lb22"), // Curl Barra
-      mkEx("lb27"), // Extensión Tríceps Goma
-      mkEx("lb29"), // Plancha
-    ]
-  },
-  {
-    id:"FB_B", name:"Full Body B", subtitle:"Hipertrofia", icon:"🔻",
-    exercises:[
-      mkEx("lb17"), // RDL
-      mkEx("lb02"), // Press Inclinado Barra
-      mkEx("lb08"), // Dominadas
-      mkEx("lb12"), // Press Arnold
-      mkEx("lb09"), // Remo Mancuerna
-      mkEx("lb23"), // Curl Alterno
-      mkEx("lb26"), // Fondos
-      mkEx("lb30"), // Crunch banca
-    ]
-  },
-  {
-    id:"FB_C", name:"Full Body C", subtitle:"Volumen + Core", icon:"⬡",
-    exercises:[
-      mkEx("lb18"), // Sentadilla Goblet
-      mkEx("lb03"), // Press Banca Mancuernas
-      mkEx("lb10"), // Remo Goma
-      mkEx("lb13"), // Elevaciones Laterales
-      mkEx("lb20"), // Hip Thrust
-      mkEx("lb24"), // Curl Martillo
-      mkEx("lb15"), // Face Pull
-      mkEx("lb31"), // Russian Twist
-    ]
-  },
+const EX_IMG = {
+  "Press Banca":           "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800&q=80",
+  "Press Inclinado Barra": "https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?w=800&q=80",
+  "Press Banca Mancuernas":"https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800&q=80",
+  "Press Inclinado Mancuernas":"https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?w=800&q=80",
+  "Aperturas con Goma":    "https://images.unsplash.com/photo-1598971457999-ca4ef48a9a71?w=800&q=80",
+  "Peso Muerto":           "https://images.unsplash.com/photo-1534367507873-d2d7e24c797f?w=800&q=80",
+  "Remo con Barra":        "https://images.unsplash.com/photo-1603287681836-b174ce5074c2?w=800&q=80",
+  "Dominadas":             "https://images.unsplash.com/photo-1718043468852-69b2d45e0603?w=800&q=80",
+  "Remo Mancuerna":        "https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?w=800&q=80",
+  "Remo con Goma":         "https://images.unsplash.com/photo-1604480132736-44c188fe4d20?w=800&q=80",
+  "Press Militar":         "https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?w=800&q=80",
+  "Press Arnold":          "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?w=800&q=80",
+  "Elevaciones Laterales": "https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?w=800&q=80",
+  "Elevaciones Laterales Goma":"https://images.unsplash.com/photo-1598971457999-ca4ef48a9a71?w=800&q=80",
+  "Face Pull Goma":        "https://images.unsplash.com/photo-1598971457999-ca4ef48a9a71?w=800&q=80",
+  "Sentadilla":            "https://images.unsplash.com/photo-1566241440091-ec10de8db2e1?w=800&q=80",
+  "Peso Muerto Rumano":    "https://images.unsplash.com/photo-1574680096145-d05b474e2155?w=800&q=80",
+  "Sentadilla Goblet":     "https://images.unsplash.com/photo-1566241440091-ec10de8db2e1?w=800&q=80",
+  "Zancadas con Mancuernas":"https://images.unsplash.com/photo-1509833903111-9cb142f8b9fc?w=800&q=80",
+  "Hip Thrust Barra":      "https://images.unsplash.com/photo-1574680096145-d05b474e2155?w=800&q=80",
+  "Curl Barra":            "https://images.unsplash.com/photo-1581009137042-c552e485697a?w=800&q=80",
+  "Curl Mancuernas Alterno":"https://images.unsplash.com/photo-1581009137042-c552e485697a?w=800&q=80",
+  "Curl Martillo":         "https://images.unsplash.com/photo-1581009137042-c552e485697a?w=800&q=80",
+  "Curl Goma":             "https://images.unsplash.com/photo-1604480132736-44c188fe4d20?w=800&q=80",
+  "Fondos en Paralelas":   "https://images.unsplash.com/photo-1598971457999-ca4ef48a9a71?w=800&q=80",
+  "Extensión Tríceps Goma":"https://images.unsplash.com/photo-1598971457999-ca4ef48a9a71?w=800&q=80",
+  "Press Francés Mancuerna":"https://images.unsplash.com/photo-1598971457999-ca4ef48a9a71?w=800&q=80",
+  "Plancha":               "https://images.unsplash.com/photo-1616803689943-5601631c7fec?w=800&q=80",
+  "Crunch Banca Inclinada":"https://images.unsplash.com/photo-1616803689943-5601631c7fec?w=800&q=80",
+  "Russian Twist Mancuerna":"https://images.unsplash.com/photo-1616803689943-5601631c7fec?w=800&q=80",
+};
+const gImg = n => EX_IMG[n] || "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800&q=80";
+
+const LIB = [
+  {id:"lb01",name:"Press Banca",group:"Pecho",muscle:"Pecho · Tríceps · Hombros",type:"barra",sets:4,reps:8,weight:60,rest:120,cues:["Escápulas retraídas","Barra al esternón","Pies firmes"]},
+  {id:"lb02",name:"Press Inclinado Barra",group:"Pecho",muscle:"Pecho alto · Tríceps",type:"barra",sets:4,reps:8,weight:50,rest:120,cues:["Banco 30-45°","Baja al pecho alto","Control en bajada"]},
+  {id:"lb03",name:"Press Banca Mancuernas",group:"Pecho",muscle:"Pecho · Tríceps",type:"mancuerna",sets:4,reps:10,weight:10,rest:90,cues:["Rango completo","Junta arriba","Control bajada"],isMancuerna:true},
+  {id:"lb04",name:"Press Inclinado Mancuernas",group:"Pecho",muscle:"Pecho alto · Hombros",type:"mancuerna",sets:3,reps:10,weight:10,rest:90,cues:["Banco 30-45°","Empuja y junta"],isMancuerna:true},
+  {id:"lb05",name:"Aperturas con Goma",group:"Pecho",muscle:"Pecho · Deltoides anterior",type:"goma",sets:3,reps:15,weight:0,rest:60,cues:["Ancla al rack","Brazos semiestirados","Contrae al centro"],isGoma:true},
+  {id:"lb06",name:"Peso Muerto",group:"Espalda",muscle:"Espalda baja · Isquios · Glúteos",type:"barra",sets:4,reps:5,weight:80,rest:180,cues:["Espalda neutra","Barra pegada","Empuja el suelo"]},
+  {id:"lb07",name:"Remo con Barra",group:"Espalda",muscle:"Dorsal · Romboides · Bíceps",type:"barra",sets:4,reps:8,weight:50,rest:120,cues:["Torso 45°","Tira al ombligo","Aprieta espalda"]},
+  {id:"lb08",name:"Dominadas",group:"Espalda",muscle:"Dorsal · Bíceps · Core",type:"corporal",sets:4,reps:6,weight:0,rest:120,cues:["Activa dorsal","Pecho a la barra","Baja con control"],isCuerpo:true},
+  {id:"lb09",name:"Remo Mancuerna",group:"Espalda",muscle:"Dorsal · Romboides · Bíceps",type:"mancuerna",sets:4,reps:10,weight:12.5,rest:90,cues:["Rodilla y mano en banco","Tira a la cadera","Codo pegado"],isMancuerna:true},
+  {id:"lb10",name:"Remo con Goma",group:"Espalda",muscle:"Dorsal · Romboides",type:"goma",sets:3,reps:15,weight:0,rest:60,cues:["Ancla bajo en rack","Tira con codos","Aprieta espalda"],isGoma:true},
+  {id:"lb11",name:"Press Militar",group:"Hombros",muscle:"Deltoides · Tríceps · Core",type:"barra",sets:4,reps:6,weight:40,rest:120,cues:["Core apretado","Barra desde clavículas","Empuja arriba"]},
+  {id:"lb12",name:"Press Arnold",group:"Hombros",muscle:"Deltoides completo · Tríceps",type:"mancuerna",sets:4,reps:10,weight:10,rest:90,cues:["Banco 90°","Palmas hacia ti al inicio","Gira al subir"],isMancuerna:true},
+  {id:"lb13",name:"Elevaciones Laterales",group:"Hombros",muscle:"Deltoides lateral",type:"mancuerna",sets:3,reps:15,weight:7.5,rest:60,cues:["Codos semiflexionados","Sube a altura hombro","Baja con control"],isMancuerna:true},
+  {id:"lb14",name:"Elevaciones Laterales Goma",group:"Hombros",muscle:"Deltoides lateral",type:"goma",sets:3,reps:15,weight:0,rest:60,cues:["Pisa la goma","Tensión desde abajo","Sube a hombro"],isGoma:true},
+  {id:"lb15",name:"Face Pull Goma",group:"Hombros",muscle:"Deltoides posterior · Romboides",type:"goma",sets:3,reps:15,weight:0,rest:60,cues:["Ancla a altura cabeza","Tira hacia la cara","Codos altos"],isGoma:true},
+  {id:"lb16",name:"Sentadilla",group:"Piernas",muscle:"Cuádriceps · Glúteos · Core",type:"barra",sets:4,reps:6,weight:70,rest:180,cues:["Espalda neutra","Rodillas siguen pies","Baja hasta paralelo"]},
+  {id:"lb17",name:"Peso Muerto Rumano",group:"Piernas",muscle:"Isquiotibiales · Glúteos",type:"barra",sets:4,reps:10,weight:60,rest:120,cues:["Piernas casi rectas","Caderas atrás","Barra roza muslos"]},
+  {id:"lb18",name:"Sentadilla Goblet",group:"Piernas",muscle:"Cuádriceps · Glúteos",type:"mancuerna",sets:3,reps:12,weight:12.5,rest:90,cues:["Mancuerna al pecho","Codos dentro rodillas","Pecho arriba"],isMancuerna:true},
+  {id:"lb19",name:"Zancadas con Mancuernas",group:"Piernas",muscle:"Cuádriceps · Glúteos · Isquios",type:"mancuerna",sets:3,reps:10,weight:10,rest:90,cues:["Rodilla trasera al suelo","Torso recto","Empuja con talón"],isMancuerna:true},
+  {id:"lb20",name:"Hip Thrust Barra",group:"Piernas",muscle:"Glúteos · Isquiotibiales",type:"barra",sets:4,reps:10,weight:60,rest:90,cues:["Banco a omóplatos","Empuja con talones","Aprieta glúteos"]},
+  {id:"lb21",name:"Sentadilla con Goma",group:"Piernas",muscle:"Cuádriceps · Glúteos",type:"goma",sets:3,reps:15,weight:0,rest:60,cues:["Pisa la goma","Tensión constante","Sentadilla completa"],isGoma:true},
+  {id:"lb22",name:"Curl Barra",group:"Biceps",muscle:"Bíceps · Braquial",type:"barra",sets:3,reps:10,weight:25,rest:90,cues:["Codos fijos","Sin balanceo","Aprieta arriba"]},
+  {id:"lb23",name:"Curl Mancuernas Alterno",group:"Biceps",muscle:"Bíceps · Braquial",type:"mancuerna",sets:3,reps:10,weight:10,rest:90,cues:["Un brazo a la vez","Supina al subir","Control bajada"],isMancuerna:true},
+  {id:"lb24",name:"Curl Martillo",group:"Biceps",muscle:"Braquial · Bíceps",type:"mancuerna",sets:3,reps:12,weight:10,rest:60,cues:["Agarre neutro","Codos fijos","Aprieta al tope"],isMancuerna:true},
+  {id:"lb25",name:"Curl Goma",group:"Biceps",muscle:"Bíceps · Braquial anterior",type:"goma",sets:3,reps:15,weight:0,rest:60,cues:["Pisa la goma","Tensión constante","Codos fijos"],isGoma:true},
+  {id:"lb26",name:"Fondos en Paralelas",group:"Triceps",muscle:"Tríceps · Pecho bajo",type:"corporal",sets:3,reps:10,weight:0,rest:90,cues:["Torso inclinado","Rango completo","Control bajada"],isCuerpo:true},
+  {id:"lb27",name:"Extensión Tríceps Goma",group:"Triceps",muscle:"Tríceps (cabeza larga)",type:"goma",sets:3,reps:15,weight:0,rest:60,cues:["Ancla arriba en rack","Codos fijos","Extiende completamente"],isGoma:true},
+  {id:"lb28",name:"Press Francés Mancuerna",group:"Triceps",muscle:"Tríceps",type:"mancuerna",sets:3,reps:12,weight:10,rest:60,cues:["Codos al techo","Baja detrás cabeza","Extiende sin bloquear"],isMancuerna:true},
+  {id:"lb29",name:"Plancha",group:"Core",muscle:"Core · Estabilizadores",type:"corporal",sets:3,reps:45,weight:0,rest:60,cues:["Cuerpo en línea","Glúteos apretados","Respira con control"],isCuerpo:true,isTime:true},
+  {id:"lb30",name:"Crunch Banca Inclinada",group:"Core",muscle:"Abdomen superior",type:"corporal",sets:3,reps:15,weight:0,rest:60,cues:["Banco en declive","Sube hasta 45°","Contrae abdomen"],isCuerpo:true},
+  {id:"lb31",name:"Russian Twist Mancuerna",group:"Core",muscle:"Oblicuos · Core",type:"mancuerna",sets:3,reps:20,weight:7.5,rest:60,cues:["Pies elevados","Rota torso completo","Toca el suelo"],isMancuerna:true},
 ];
 
-// ─────────────────────────────────────────────
-// HELPERS
-// ─────────────────────────────────────────────
-const fmt = s => `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
-const uid = () => Math.random().toString(36).slice(2,8);
-const MANCUERNAS = [5,7.5,10,12.5];
+const mkEx = (id,ov={}) => { const b=LIB.find(e=>e.id===id); return {...b,...ov,libId:id,image:gImg(ov.name||b.name)}; };
+const DEF_SESSIONS = [
+  { id:"FA", name:"Full Body A", subtitle:"Fuerza base", icon:"A",
+    exercises:[mkEx("lb16"),mkEx("lb06"),mkEx("lb01"),mkEx("lb11"),mkEx("lb07"),mkEx("lb12"),mkEx("lb23"),mkEx("lb27"),mkEx("lb29")] },
+  { id:"FB", name:"Full Body B", subtitle:"Hipertrofia", icon:"B",
+    exercises:[mkEx("lb17"),mkEx("lb20"),mkEx("lb02"),mkEx("lb22"),mkEx("lb09"),mkEx("lb04"),mkEx("lb13"),mkEx("lb28"),mkEx("lb31")] },
+  { id:"FC", name:"Full Body C", subtitle:"Volumen + Core", icon:"C",
+    exercises:[mkEx("lb16",{name:"Sentadilla Pausa",reps:6,rest:150,cues:["Igual que sentadilla","Pausa 2s abajo","Explota arriba"]}),mkEx("lb07",{name:"Remo Barra Prono",reps:8}),mkEx("lb01",{name:"Press Banca Agarre Estrecho",reps:10,rest:90,cues:["Manos a anchura hombros","Codos pegados","Énfasis tríceps"]}),mkEx("lb08"),mkEx("lb18"),mkEx("lb03"),mkEx("lb19"),mkEx("lb24"),mkEx("lb15"),mkEx("lb30")] },
+];
 
-function loadStore(){try{return JSON.parse(localStorage.getItem(SK)||"{}");}catch{return{};}}
+function loadStore(){ try{ return JSON.parse(localStorage.getItem(SK)||"{}"); }catch{return{};} }
 function useStore(){
   const [d,setD]=useState(loadStore);
-  const save=useCallback(fn=>{
-    setD(prev=>{const n=typeof fn==="function"?fn(prev):fn;try{localStorage.setItem(SK,JSON.stringify(n));}catch{}return n;});
-  },[]);
+  const save=useCallback(fn=>{ setD(p=>{const n=typeof fn==="function"?fn(p):fn; try{localStorage.setItem(SK,JSON.stringify(n));}catch{} return n;}); },[]);
   return [d,save];
 }
 
-function getTag(ex){
-  if(ex.isCuerpo) return {label:"Peso corporal",color:"#888"};
-  if(ex.isGoma)   return {label:"Goma elástica",color:AD};
-  if(ex.isMancuerna) return {label:"Mancuerna",color:"#4db8ff"};
-  return {label:"Barra",color:"#ff8c4d"};
+const getTag = ex => ex.isCuerpo?{l:"Corporal",c:"#888"}:ex.isGoma?{l:"Goma",c:C.accentDim}:ex.isMancuerna?{l:"Mancuerna",c:C.blue}:{l:"Barra",c:C.orange};
+
+function Chip({label,color}){
+  return <span style={{fontSize:10,color,background:color+"22",borderRadius:6,padding:"2px 8px",fontWeight:600,flexShrink:0}}>{label}</span>;
 }
 
-// ─────────────────────────────────────────────
-// MINI CHART
-// ─────────────────────────────────────────────
 function MiniChart({history,unit}){
-  if(!history||history.length<2) return(
-    <p style={{textAlign:"center",padding:"24px 0",color:"var(--tx3)",fontFamily:"Barlow",fontSize:13}}>Completa 2+ sesiones para ver la gráfica</p>
-  );
+  if(!history||history.length<2) return <p style={{textAlign:"center",padding:"28px",color:C.textMut,fontSize:13}}>Completa 2+ sesiones para ver la progresión</p>;
   const vals=history.map(h=>h.weight>0?h.weight:h.reps);
-  const min=Math.min(...vals),max=Math.max(...vals),range=max-min||1;
-  const W=300,H=100,P=18;
-  const pts=vals.map((v,i)=>[P+(i/(vals.length-1))*(W-P*2), H-P-((v-min)/range)*(H-P*2)]);
-  const line=pts.map((p,i)=>`${i===0?"M":"L"}${p[0]},${p[1]}`).join(" ");
-  const area=line+` L${pts[pts.length-1][0]},${H-P} L${pts[0][0]},${H-P} Z`;
+  const mn=Math.min(...vals),mx=Math.max(...vals),rng=mx-mn||1;
+  const W=300,H=100,P=22;
+  const pts=vals.map((v,i)=>[P+(i/(vals.length-1))*(W-P*2),H-P-((v-mn)/rng)*(H-P*2)]);
+  const ln=pts.map((p,i)=>`${i===0?"M":"L"}${p[0]},${p[1]}`).join(" ");
+  const ar=ln+` L${pts[pts.length-1][0]},${H-P} L${pts[0][0]},${H-P} Z`;
   return(
     <svg width="100%" viewBox={`0 0 ${W} ${H}`}>
-      <defs><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={A} stopOpacity="0.4"/><stop offset="100%" stopColor={A} stopOpacity="0"/></linearGradient></defs>
-      <path d={area} fill="url(#cg)"/>
-      <path d={line} fill="none" stroke={A} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-      {pts.map((p,i)=>(
-        <g key={i}>
-          <circle cx={p[0]} cy={p[1]} r="3.5" fill={A}/>
-          <text x={p[0]} y={p[1]-8} textAnchor="middle" fill={A} fontSize="9" fontFamily="Barlow Condensed" fontWeight="700">{vals[i]}{unit}</text>
-          <text x={p[0]} y={H-3} textAnchor="middle" fill="var(--tx3)" fontSize="8" fontFamily="Barlow">{history[i].date}</text>
-        </g>
-      ))}
+      <defs><linearGradient id="g1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={C.accent} stopOpacity="0.3"/><stop offset="100%" stopColor={C.accent} stopOpacity="0"/></linearGradient></defs>
+      <path d={ar} fill="url(#g1)"/><path d={ln} fill="none" stroke={C.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      {pts.map((p,i)=>(<g key={i}><circle cx={p[0]} cy={p[1]} r="4" fill={C.accent} stroke={C.bg} strokeWidth="2"/>
+        <text x={p[0]} y={p[1]-9} textAnchor="middle" fill={C.accent} fontSize="9" fontFamily="Inter" fontWeight="700">{vals[i]}{unit}</text>
+        <text x={p[0]} y={H-3} textAnchor="middle" fill={C.textMut} fontSize="8" fontFamily="Inter">{history[i].date}</text></g>))}
     </svg>
   );
 }
 
-// ─────────────────────────────────────────────
-// EXERCISE CARD (library)
-// ─────────────────────────────────────────────
-function ExCard({ex,onSelect,selected,T}){
-  const gc=GROUP_COLORS[ex.group]||A;
-  const tag=getTag(ex);
-  return(
-    <div onClick={()=>onSelect(ex)} style={{background:selected?A+"18":T.card,border:`1px solid ${selected?A+"88":T.bd}`,borderRadius:16,marginBottom:10,overflow:"hidden",cursor:"pointer",transition:"all 0.2s"}}>
-      <div style={{display:"flex",gap:0}}>
-        <div style={{width:90,height:80,flexShrink:0,overflow:"hidden"}}>
-          <img src={ex.image} alt={ex.name} style={{width:"100%",height:"100%",objectFit:"cover",filter:"brightness(0.7)"}} onError={e=>e.target.style.display="none"}/>
-        </div>
-        <div style={{padding:"10px 12px",flex:1,minWidth:0}}>
-          <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:4,flexWrap:"wrap"}}>
-            <span style={{fontSize:10,color:gc,background:gc+"20",borderRadius:6,padding:"2px 7px",fontFamily:"Barlow",fontWeight:600}}>{ex.group}</span>
-            <span style={{fontSize:10,color:tag.color,background:tag.color+"18",borderRadius:6,padding:"2px 7px",fontFamily:"Barlow",fontWeight:600}}>{tag.label}</span>
-          </div>
-          <p style={{margin:0,fontFamily:"Barlow Condensed",fontSize:16,fontWeight:800,color:selected?A:T.tx,lineHeight:1.1}}>{ex.name}</p>
-          <p style={{margin:"3px 0 0",fontSize:11,color:T.tx3,fontFamily:"Barlow",lineHeight:1.3}}>{ex.muscle}</p>
-        </div>
-        {selected&&<div style={{width:32,display:"flex",alignItems:"center",justifyContent:"center",background:A,color:"#000",fontWeight:900,fontSize:16}}>✓</div>}
-      </div>
-    </div>
-  );
-}
+const IBtn = {background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,cursor:"pointer",color:C.text,display:"flex",alignItems:"center",justifyContent:"center",width:36,height:36,fontSize:16,fontWeight:700};
+const PBtn = {width:"100%",padding:"15px",background:C.accent,border:"none",borderRadius:14,color:"#000",fontWeight:700,fontSize:15,cursor:"pointer"};
+const GBtn = {width:"100%",padding:"14px",background:"transparent",border:`1px solid ${C.border}`,borderRadius:14,color:C.textSec,fontWeight:600,fontSize:14,cursor:"pointer"};
+const SBtn = {background:C.card,border:"none",color:C.text,width:32,height:32,borderRadius:9,cursor:"pointer",fontSize:18,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0};
+const NIn  = {flex:1,background:"none",border:"none",color:C.text,fontSize:28,fontWeight:700,width:"100%",textAlign:"center",outline:"none"};
+const SecT = {fontSize:11,color:C.textMut,fontWeight:700,letterSpacing:1.5,marginBottom:12};
 
-// ─────────────────────────────────────────────
-// MAIN APP
-// ─────────────────────────────────────────────
 function App(){
   const [store,saveStore]=useStore();
-  const [dark,setDark]=useState(()=>store.dark!==false);
-  const [unit,setUnit]=useState(()=>store.unit||"kg");
-  const [sessions,setSessions]=useState(()=>store.sessions||DEFAULT_SESSIONS);
+  const [sessions,setSessions]=useState(()=>store.sessions||DEF_SESSIONS);
   const [logData,setLogData]=useState(()=>store.logData||{});
   const [streak,setStreak]=useState(()=>store.streak||{count:0,lastDate:null});
+  const [savedWS,setSavedWS]=useState(()=>store.savedWS||null);
+  const [sesDates,setSesDates]=useState(()=>store.sesDates||{});
+  const [unit,setUnit]=useState(()=>store.unit||"kg");
   const [screen,setScreen]=useState("home");
-  // workout
-  const [activeSession,setActiveSession]=useState(null);
+  const [activeS,setActiveS]=useState(null);
   const [exIdx,setExIdx]=useState(0);
   const [setIdx,setSetIdx]=useState(0);
   const [setLogs,setSetLogs]=useState([]);
   const [progModal,setProgModal]=useState(null);
+  const [resumeModal,setResumeModal]=useState(false);
   const [totalSecs,setTotalSecs]=useState(0);
   const [timerOn,setTimerOn]=useState(false);
   const [restSecs,setRestSecs]=useState(0);
@@ -232,198 +181,200 @@ function App(){
   const [repsI,setRepsI]=useState("");
   const [noteI,setNoteI]=useState("");
   const [showCues,setShowCues]=useState(false);
-  const [imgErr,setImgErr]=useState({});
-  // library swap
-  const [swapModal,setSwapModal]=useState(null); // {sessionIdx,exIdx,group}
-  const [libFilter,setLibFilter]=useState("");
-  // history
+  const [swapModal,setSwapModal]=useState(null);
+  const [libQ,setLibQ]=useState("");
   const [histModal,setHistModal]=useState(null);
-  // settings
-  const [settingsOpen,setSettingsOpen]=useState(false);
-  const mainRef=useRef();const restRef=useRef();
+  const [settings,setSettings]=useState(false);
+  const [reorderSi,setReorderSi]=useState(null);
+  const mRef=useRef(); const rRef=useRef();
 
-  // theme
-  useEffect(()=>{document.body.className=dark?"dk":"lt";},[dark]);
-  // persist
-  useEffect(()=>{saveStore(p=>({...p,dark,unit,sessions,logData,streak}));},[dark,unit,sessions,logData,streak]);
-  // timers
+  useEffect(()=>{ saveStore(p=>({...p,sessions,logData,streak,savedWS,sesDates,unit})); },[sessions,logData,streak,savedWS,sesDates,unit]);
+  useEffect(()=>{ if(timerOn) mRef.current=setInterval(()=>setTotalSecs(s=>s+1),1000); else clearInterval(mRef.current); return()=>clearInterval(mRef.current); },[timerOn]);
   useEffect(()=>{
-    if(timerOn) mainRef.current=setInterval(()=>setTotalSecs(s=>s+1),1000);
-    else clearInterval(mainRef.current);
-    return()=>clearInterval(mainRef.current);
-  },[timerOn]);
-  useEffect(()=>{
-    if(restOn) restRef.current=setInterval(()=>setRestSecs(s=>{if(s<=1){clearInterval(restRef.current);setRestOn(false);return 0;}return s-1;}),1000);
-    else clearInterval(restRef.current);
-    return()=>clearInterval(restRef.current);
+    if(restOn){ rRef.current=setInterval(()=>setRestSecs(s=>{ if(s<=1){clearInterval(rRef.current);setRestOn(false);vibrate(500);return 0;} return s-1; }),1000); }
+    else clearInterval(rRef.current);
+    return()=>clearInterval(rRef.current);
   },[restOn]);
 
-  const T = dark
-    ? {bg:"#0A0A0A",bg2:"#0f0f0f",card:"#111",card2:"#181818",bd:"#222",tx:"#fff",tx2:"#aaa",tx3:"#555"}
-    : {bg:"#F2F2ED",bg2:"#E8E8E2",card:"#fff",card2:"#EBEBЕ5",bd:"#ddd",tx:"#111",tx2:"#555",tx3:"#999"};
+  const suggested = (() => {
+    let oldest=null, oldestI=0;
+    sessions.forEach((s,i)=>{
+      const d=sesDates[s.id];
+      if(!d){if(oldest!==null)return;oldest=null;oldestI=i;return;}
+      if(oldest===null||new Date(d.raw)<new Date(oldest)){oldest=d.raw;oldestI=i;}
+    });
+    return sessions[oldestI];
+  })();
 
-  function getLog(sId,exName){return logData[`${sId}__${exName}`]||null;}
-  function getPlan(sId,ex){
-    const d=getLog(sId,ex.name);
-    if(d) return {weight:d.nextWeight,reps:d.nextReps};
-    return {weight:ex.weight||0,reps:ex.reps||8};
-  }
+  const getLog=(sId,n)=>logData[`${sId}__${n}`]||null;
+  const getPlan=(sId,ex)=>{ const d=getLog(sId,ex.name); return d?{weight:d.lastWeight,reps:d.lastReps}:{weight:ex.weight||0,reps:ex.reps||8}; };
 
   function startSession(s){
-    setActiveSession(s);setExIdx(0);setSetIdx(0);
-    setTotalSecs(0);setTimerOn(true);
-    setSetLogs([]);setShowCues(false);setRestOn(false);setNoteI("");
-    const ex=s.exercises[0];
-    const plan=getPlan(s.id,ex);
-    setWeightI(String(plan.weight));setRepsI(String(plan.reps));
-    setScreen("exercise");
+    if(savedWS&&savedWS.sId===s.id){setActiveS(s);setResumeModal(true);return;}
+    setSavedWS(null); initSes(s);
   }
+  function initSes(s,res=null){
+    setActiveS(s);setShowCues(false);setRestOn(false);setNoteI("");
+    if(res){setExIdx(res.exIdx);setSetIdx(res.setIdx);setTotalSecs(res.totalSecs||0);setSetLogs(res.setLogs||[]);setWeightI(res.weightI||"");setRepsI(res.repsI||"");}
+    else{setExIdx(0);setSetIdx(0);setTotalSecs(0);setSetLogs([]);const p=getPlan(s.id,s.exercises[0]);setWeightI(String(p.weight));setRepsI(String(p.reps));}
+    setTimerOn(true);setScreen("exercise");
+  }
+  useEffect(()=>{ if(screen==="exercise"&&activeS) setSavedWS({sId:activeS.id,exIdx,setIdx,totalSecs,setLogs,weightI,repsI}); },[screen,exIdx,setIdx,setLogs,weightI,repsI]);
 
   function logSet(){
-    const w=parseFloat(weightI)||0;
-    const r=parseInt(repsI)||0;
-    const ex=activeSession.exercises[exIdx];
-    const updated=[...setLogs,{weight:w,reps:r,note:noteI.trim()}];
-    setSetLogs(updated);setNoteI("");
-    setRestSecs(ex.rest||90);setRestOn(true);
+    const w=parseFloat(weightI)||0,r=parseInt(repsI)||0;
+    const ex=activeS.exercises[exIdx];
+    const upd=[...setLogs,{weight:w,reps:r,note:noteI.trim()}];
+    setSetLogs(upd);setNoteI("");setRestSecs(ex.rest||90);setRestOn(true);
     if(setIdx+1<ex.sets) setSetIdx(s=>s+1);
-    else setProgModal({ex,sessionId:activeSession.id,logs:updated});
+    else setProgModal({ex,sId:activeS.id,logs:upd});
   }
 
   function handleProg(choice){
-    const{ex,sessionId,logs}=progModal;
-    const lastW=logs[logs.length-1].weight;
-    const lastR=logs[logs.length-1].reps;
-    let nW=lastW,nR=lastR;
-    if(choice==="weight"){
-      if(ex.isMancuerna){const i=MANCUERNAS.indexOf(lastW);nW=i!==-1&&i<MANCUERNAS.length-1?MANCUERNAS[i+1]:lastW;}
-      else nW=Math.round((lastW+2.5)*10)/10;
-    } else if(choice==="reps") nR=lastR+1;
-    const key=`${sessionId}__${ex.name}`;
-    const prev=logData[key]||{};
-    const newLD={...logData,[key]:{
-      lastWeight:lastW,lastReps:lastR,nextWeight:nW,nextReps:nR,
-      history:[...(prev.history||[]),{weight:lastW,reps:lastR,date:new Date().toLocaleDateString("es-ES",{day:"2-digit",month:"2-digit"}),note:logs[logs.length-1].note||""}]
-    }};
-    setLogData(newLD);setProgModal(null);setRestOn(false);
+    const{ex,sId,logs}=progModal;
+    const lW=logs[logs.length-1].weight,lR=logs[logs.length-1].reps;
+    let nW=lW,nR=lR;
+    if(choice==="weight"){if(ex.isMancuerna){const i=MANCUERNAS.indexOf(lW);nW=i!==-1&&i<MANCUERNAS.length-1?MANCUERNAS[i+1]:lW;}else nW=Math.round((lW+2.5)*10)/10;}
+    else if(choice==="reps") nR=lR+1;
+    const key=`${sId}__${ex.name}`,prev=logData[key]||{};
+    setLogData(ld=>({...ld,[key]:{lastWeight:lW,lastReps:lR,nextWeight:nW,nextReps:nR,history:[...(prev.history||[]),{weight:lW,reps:lR,date:dateKey(),note:logs[logs.length-1].note||""}]}}));
+    setProgModal(null);setRestOn(false);
     const next=exIdx+1;
-    if(next<activeSession.exercises.length){
-      const nEx=activeSession.exercises[next];
-      const plan=getPlan(activeSession.id,nEx);
-      setWeightI(String(plan.weight));setRepsI(String(plan.reps));
-      setExIdx(next);setSetIdx(0);setSetLogs([]);setShowCues(false);setNoteI("");
+    if(next<activeS.exercises.length){
+      const nEx=activeS.exercises[next],p=getPlan(activeS.id,nEx);
+      setWeightI(String(p.weight));setRepsI(String(p.reps));setExIdx(next);setSetIdx(0);setSetLogs([]);setShowCues(false);setNoteI("");
     } else {
-      setTimerOn(false);
+      setTimerOn(false);setSavedWS(null);
+      setSesDates(sd=>({...sd,[activeS.id]:{display:todayDisp(),raw:new Date().toISOString()}}));
       const today=new Date().toDateString();
-      setStreak(p=>{
-        const yest=new Date(Date.now()-86400000).toDateString();
-        if(p.lastDate===today) return p;
-        return{count:p.lastDate===yest?p.count+1:1,lastDate:today};
-      });
+      setStreak(p=>{const y=new Date(Date.now()-86400000).toDateString();if(p.lastDate===today)return p;return{count:p.lastDate===y?p.count+1:1,lastDate:today};});
       setScreen("done");
     }
   }
 
-  function swapExercise(sessionIdx,exIdx,newEx){
-    setSessions(prev=>prev.map((s,si)=>si!==sessionIdx?s:{
-      ...s,exercises:s.exercises.map((e,ei)=>ei!==exIdx?e:{...newEx,libId:newEx.id,sets:e.sets,id:e.id||uid()})
-    }));
-    setSwapModal(null);
-  }
+  function swapEx(si,ei,newEx){ setSessions(p=>p.map((s,i)=>i!==si?s:{...s,exercises:s.exercises.map((e,j)=>j!==ei?e:{...newEx,libId:newEx.id,sets:e.sets,image:gImg(newEx.name)})})); setSwapModal(null);setLibQ(""); }
+  function moveEx(si,from,dir){ setSessions(p=>p.map((s,i)=>{ if(i!==si)return s; const a=[...s.exercises],to=from+dir; if(to<0||to>=a.length)return s; [a[from],a[to]]=[a[to],a[from]]; return{...s,exercises:a}; })); }
 
-  // ── LIBRARY MODAL ──────────────────────────────────────────────
+  // RESUME
+  if(resumeModal&&activeS) return(
+    <div style={{minHeight:"100vh",background:C.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:32}}>
+      <div style={{width:72,height:72,borderRadius:24,background:C.surface,border:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:32,marginBottom:24}}>⏸</div>
+      <p style={{fontSize:22,fontWeight:800,marginBottom:6,textAlign:"center"}}>Sesión en pausa</p>
+      <p style={{fontSize:14,color:C.textSec,marginBottom:4,textAlign:"center"}}>{activeS.name}</p>
+      <p style={{fontSize:13,color:C.accent,fontWeight:600,marginBottom:40,textAlign:"center"}}>Ejercicio {(savedWS?.exIdx||0)+1}/{activeS.exercises.length} · Serie {(savedWS?.setIdx||0)+1}</p>
+      <button onClick={()=>{setResumeModal(false);initSes(activeS,savedWS);}} style={PBtn}>Continuar donde lo dejé</button>
+      <button onClick={()=>{setResumeModal(false);setSavedWS(null);initSes(activeS);}} style={{...GBtn,marginTop:10}}>Empezar desde el principio</button>
+    </div>
+  );
+
+  // SWAP LIBRARY
   if(swapModal){
-    const group=swapModal.group;
-    const q=libFilter.toLowerCase();
-    const filtered=LIBRARY.filter(e=>e.group===group&&(!q||e.name.toLowerCase().includes(q)));
+    const filtered=LIB.filter(e=>e.group===swapModal.group&&(!libQ||e.name.toLowerCase().includes(libQ.toLowerCase())));
     return(
-      <div style={{minHeight:"100vh",background:T.bg,color:T.tx}}>
-        <div style={{padding:"52px 20px 0",position:"sticky",top:0,background:T.bg,zIndex:10,paddingBottom:12,borderBottom:`1px solid ${T.bd}`}}>
-          <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
-            <button onClick={()=>setSwapModal(null)} style={bBtn(T)}>←</button>
-            <div>
-              <p style={{fontFamily:"Barlow Condensed",fontSize:22,fontWeight:900,color:T.tx}}>CAMBIAR EJERCICIO</p>
-              <p style={{fontSize:12,color:GROUP_COLORS[group]||A,fontFamily:"Barlow",fontWeight:600}}>Grupo: {group}</p>
-            </div>
+      <div style={{minHeight:"100vh",background:C.bg}}>
+        <div style={{padding:"56px 20px 14px",position:"sticky",top:0,background:C.bg,zIndex:10,borderBottom:`1px solid ${C.border}`}}>
+          <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:14}}>
+            <button onClick={()=>{setSwapModal(null);setLibQ("");}} style={IBtn}>←</button>
+            <div><p style={{fontSize:18,fontWeight:800}}>Cambiar ejercicio</p><p style={{fontSize:12,color:GC[swapModal.group]||C.accent,fontWeight:600,marginTop:2}}>{swapModal.group} · mismo grupo muscular</p></div>
           </div>
-          <input value={libFilter} onChange={e=>setLibFilter(e.target.value)} placeholder={`Buscar ejercicio de ${group}...`}
-            style={{width:"100%",background:T.card,border:`1px solid ${T.bd}`,borderRadius:10,padding:"10px 14px",color:T.tx,fontSize:14,fontFamily:"Barlow",outline:"none"}}/>
+          <input value={libQ} onChange={e=>setLibQ(e.target.value)} placeholder="Buscar..." style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"11px 16px",color:C.text,fontSize:14,outline:"none"}}/>
         </div>
-        <div style={{padding:"14px 20px 60px"}}>
-          {filtered.length===0&&<p style={{color:T.tx3,fontFamily:"Barlow",textAlign:"center",padding:"30px 0",fontSize:13}}>No hay ejercicios con ese nombre</p>}
-          {filtered.map(ex=>(
-            <ExCard key={ex.id} ex={ex} T={T} onSelect={e=>{swapExercise(swapModal.sessionIdx,swapModal.exIdx,e);setLibFilter("");}}/>
-          ))}
+        <div style={{padding:"12px 20px 60px"}}>
+          {filtered.map(ex=>{const tag=getTag(ex);return(
+            <div key={ex.id} onClick={()=>swapEx(swapModal.si,swapModal.ei,ex)} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:16,marginBottom:10,overflow:"hidden",display:"flex",cursor:"pointer",height:80}}>
+              <div style={{width:96,flexShrink:0,overflow:"hidden"}}><img src={gImg(ex.name)} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/></div>
+              <div style={{padding:"12px 14px",flex:1,minWidth:0,display:"flex",flexDirection:"column",justifyContent:"center"}}>
+                <p style={{fontSize:15,fontWeight:700}}>{ex.name}</p>
+                <p style={{fontSize:12,color:C.textSec,margin:"3px 0 5px"}}>{ex.muscle}</p>
+                <div style={{display:"flex",gap:5}}><Chip label={ex.group} color={GC[ex.group]||C.accent}/><Chip label={tag.l} color={tag.c}/></div>
+              </div>
+            </div>
+          );})}
         </div>
       </div>
     );
   }
 
-  // ── SETTINGS ───────────────────────────────────────────────────
-  if(settingsOpen) return(
-    <div style={{minHeight:"100vh",background:T.bg,color:T.tx}}>
-      <div style={{padding:"52px 22px 0",display:"flex",alignItems:"center",gap:14,marginBottom:24}}>
-        <button onClick={()=>setSettingsOpen(false)} style={bBtn(T)}>←</button>
-        <p style={{fontFamily:"Barlow Condensed",fontSize:28,fontWeight:900}}>AJUSTES</p>
+  // REORDER
+  if(reorderSi!==null){
+    const s=sessions[reorderSi];
+    return(
+      <div style={{minHeight:"100vh",background:C.bg}}>
+        <div style={{padding:"56px 20px 14px",position:"sticky",top:0,background:C.bg,zIndex:10,borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:14}}>
+          <button onClick={()=>setReorderSi(null)} style={IBtn}>←</button>
+          <div><p style={{fontSize:18,fontWeight:800}}>Reordenar</p><p style={{fontSize:12,color:C.textSec,marginTop:2}}>{s.name}</p></div>
+        </div>
+        <div style={{padding:"12px 20px"}}>
+          <div style={{background:C.surface,border:`1px solid ${C.accent}33`,borderRadius:14,padding:"12px 16px",marginBottom:14,display:"flex",gap:10}}>
+            <span>💡</span>
+            <p style={{fontSize:12,color:C.textSec,lineHeight:1.6}}><span style={{color:C.orange,fontWeight:600}}>Barra</span> primero · luego <span style={{color:C.blue,fontWeight:600}}>Mancuernas</span> · al final <span style={{color:C.accentDim,fontWeight:600}}>Gomas</span></p>
+          </div>
+          {s.exercises.map((ex,i)=>{const tag=getTag(ex);return(
+            <div key={ex.id||i} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,marginBottom:8,display:"flex",alignItems:"center",gap:10,overflow:"hidden"}}>
+              <div style={{width:54,height:50,flexShrink:0,overflow:"hidden"}}><img src={ex.image||gImg(ex.name)} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/></div>
+              <div style={{flex:1,minWidth:0,padding:"6px 0"}}><p style={{fontSize:14,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{ex.name}</p><Chip label={tag.l} color={tag.c}/></div>
+              <div style={{display:"flex",gap:4,padding:"0 10px",flexShrink:0}}>
+                <button onClick={()=>moveEx(reorderSi,i,-1)} disabled={i===0} style={{...IBtn,width:30,height:30,opacity:i===0?0.25:1}}>↑</button>
+                <button onClick={()=>moveEx(reorderSi,i,1)} disabled={i===s.exercises.length-1} style={{...IBtn,width:30,height:30,opacity:i===s.exercises.length-1?0.25:1}}>↓</button>
+              </div>
+            </div>
+          );})}
+        </div>
+      </div>
+    );
+  }
+
+  // SETTINGS
+  if(settings) return(
+    <div style={{minHeight:"100vh",background:C.bg}}>
+      <div style={{padding:"56px 22px 18px",display:"flex",alignItems:"center",gap:14,borderBottom:`1px solid ${C.border}`,marginBottom:22}}>
+        <button onClick={()=>setSettings(false)} style={IBtn}>←</button>
+        <p style={{fontSize:20,fontWeight:800}}>Ajustes</p>
       </div>
       <div style={{padding:"0 22px"}}>
-        <SLabel t="APARIENCIA"/>
-        <SRow label="Tema oscuro" T={T}><Toggle v={dark} on={v=>setDark(v)}/></SRow>
-        <SLabel t="UNIDADES" style={{marginTop:20}}/>
-        <SRow label="Peso" T={T}>
-          <div style={{display:"flex",gap:8}}>
-            {["kg","lb"].map(u=>(
-              <button key={u} onClick={()=>setUnit(u)} style={{padding:"6px 18px",background:unit===u?A:T.card2,border:`1px solid ${unit===u?A:T.bd}`,borderRadius:8,color:unit===u?"#000":T.tx2,fontFamily:"Barlow Condensed",fontWeight:700,cursor:"pointer"}}>{u}</button>
-            ))}
+        <p style={SecT}>UNIDADES</p>
+        <div style={{background:C.surface,borderRadius:16,border:`1px solid ${C.border}`,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24}}>
+          <p style={{fontSize:15,fontWeight:500}}>Sistema de peso</p>
+          <div style={{display:"flex",gap:4,background:C.card,borderRadius:10,padding:3}}>
+            {["kg","lb"].map(u=><button key={u} onClick={()=>setUnit(u)} style={{padding:"6px 16px",background:unit===u?C.accent:"transparent",border:"none",borderRadius:8,color:unit===u?"#000":C.textSec,fontWeight:700,cursor:"pointer",fontSize:13}}>{u}</button>)}
           </div>
-        </SRow>
-        <SLabel t="DATOS" style={{marginTop:20}}/>
-        <button onClick={()=>{
-          const rows=[["Ejercicio","Fecha","Peso","Reps","Nota"]];
-          Object.entries(logData).forEach(([k,v])=>{const n=k.split("__")[1];(v.history||[]).forEach(h=>rows.push([n,h.date,h.weight,h.reps,h.note||""]));});
-          const csv=rows.map(r=>r.join(",")).join("\n");
-          const a=document.createElement("a");a.href="data:text/csv;charset=utf-8,"+encodeURIComponent(csv);a.download="historial.csv";a.click();
-        }} style={{...fBtn(A),marginBottom:10}}>📊 Exportar historial CSV</button>
-        <button onClick={()=>{if(confirm("¿Borrar todos los datos?")){setLogData({});setSessions(DEFAULT_SESSIONS);setStreak({count:0,lastDate:null});}}} style={{...fBtn(T.card2),color:"#ff4d4d",border:"1px solid #ff4d4d33"}}>🗑 Borrar datos</button>
+        </div>
+        <p style={SecT}>DATOS</p>
+        <button onClick={()=>{const rows=[["Ejercicio","Fecha","Peso","Reps","Nota"]];Object.entries(logData).forEach(([k,v])=>{const n=k.split("__")[1];(v.history||[]).forEach(h=>rows.push([n,h.date,h.weight,h.reps,h.note||""]));});const a=document.createElement("a");a.href="data:text/csv;charset=utf-8,"+encodeURIComponent(rows.map(r=>r.join(",")).join("\n"));a.download="historial.csv";a.click();}} style={{...PBtn,marginBottom:10}}>Exportar historial CSV</button>
+        <button onClick={()=>{if(confirm("¿Borrar todos los datos?")){setLogData({});setSessions(DEF_SESSIONS);setStreak({count:0,lastDate:null});setSavedWS(null);setSesDates({});}}} style={{...GBtn,color:C.red,borderColor:`${C.red}44`}}>Borrar todos los datos</button>
       </div>
     </div>
   );
 
-  // ── HISTORY MODAL ──────────────────────────────────────────────
+  // HISTORY
   if(histModal){
-    const key=`${histModal.sessionId}__${histModal.exName}`;
-    const d=logData[key];
-    const hist=d?.history||[];
+    const key=`${histModal.sId}__${histModal.name}`,d=logData[key],hist=d?.history||[];
     return(
-      <div style={{minHeight:"100vh",background:T.bg,color:T.tx,paddingBottom:40}}>
-        <div style={{padding:"52px 20px 0",display:"flex",alignItems:"center",gap:14,marginBottom:20}}>
-          <button onClick={()=>setHistModal(null)} style={bBtn(T)}>←</button>
-          <div>
-            <p style={{fontFamily:"Barlow Condensed",fontSize:22,fontWeight:900}}>{histModal.exName.toUpperCase()}</p>
-            <p style={{fontSize:12,color:T.tx3,fontFamily:"Barlow"}}>{histModal.muscle}</p>
-          </div>
+      <div style={{minHeight:"100vh",background:C.bg,paddingBottom:40}}>
+        <div style={{padding:"56px 20px 18px",display:"flex",alignItems:"center",gap:14,borderBottom:`1px solid ${C.border}`,marginBottom:20}}>
+          <button onClick={()=>setHistModal(null)} style={IBtn}>←</button>
+          <div><p style={{fontSize:18,fontWeight:800}}>{histModal.name}</p><p style={{fontSize:12,color:C.textSec,marginTop:2}}>{histModal.muscle}</p></div>
         </div>
         <div style={{padding:"0 20px"}}>
-          {d&&(
-            <div style={{display:"flex",gap:8,marginBottom:20}}>
-              <SCrd label="ÚLTIMO" value={d.lastWeight>0?`${d.lastWeight}${unit}×${d.lastReps}`:`${d.lastReps}r`} T={T}/>
-              <SCrd label="PRÓXIMO" value={d.nextWeight>0?`${d.nextWeight}${unit}×${d.nextReps}`:`${d.nextReps}r`} T={T} hl/>
-              <SCrd label="VECES" value={hist.length} T={T}/>
-            </div>
-          )}
-          <SLabel t="PROGRESIÓN"/>
-          <div style={{background:T.card,border:`1px solid ${T.bd}`,borderRadius:16,padding:14,marginBottom:20,overflowX:"auto"}}>
-            <MiniChart history={hist} unit={d?.lastWeight>0?unit:"r"}/>
-          </div>
-          <SLabel t="HISTORIAL"/>
-          {hist.length===0&&<p style={{color:T.tx3,fontFamily:"Barlow",fontSize:13,textAlign:"center",padding:"20px 0"}}>Sin datos todavía</p>}
-          {[...hist].reverse().map((h,i)=>(
-            <div key={i} style={{background:T.card,border:`1px solid ${T.bd}`,borderRadius:12,padding:"12px 14px",marginBottom:8}}>
-              <div style={{display:"flex",justifyContent:"space-between"}}>
-                <p style={{fontFamily:"Barlow Condensed",fontSize:19,fontWeight:700,color:A}}>{h.weight>0?`${h.weight}${unit} × ${h.reps} reps`:`${h.reps} reps`}</p>
-                <p style={{fontSize:12,color:T.tx3,fontFamily:"Barlow"}}>{h.date}</p>
+          {d&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:22}}>
+            {[{l:"ÚLTIMO",v:d.lastWeight>0?`${d.lastWeight}${unit}×${d.lastReps}`:`${d.lastReps}r`},{l:"PRÓXIMO",v:d.nextWeight>0?`${d.nextWeight}${unit}×${d.nextReps}`:`${d.nextReps}r`,hi:true},{l:"SESIONES",v:hist.length}].map(x=>(
+              <div key={x.l} style={{background:x.hi?`${C.accent}18`:C.surface,border:`1px solid ${x.hi?`${C.accent}44`:C.border}`,borderRadius:14,padding:12,textAlign:"center"}}>
+                <p style={{fontSize:9,color:x.hi?C.accent:C.textMut,letterSpacing:1.5,fontWeight:700,marginBottom:4}}>{x.l}</p>
+                <p style={{fontSize:17,fontWeight:800,color:x.hi?C.accent:C.text}}>{x.v}</p>
               </div>
-              {h.note&&<p style={{margin:"4px 0 0",fontSize:12,color:T.tx2,fontFamily:"Barlow"}}>💬 {h.note}</p>}
+            ))}
+          </div>}
+          <p style={SecT}>PROGRESIÓN</p>
+          <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:16,padding:16,marginBottom:22,overflowX:"auto"}}><MiniChart history={hist} unit={d?.lastWeight>0?unit:"r"}/></div>
+          <p style={SecT}>HISTORIAL</p>
+          {hist.length===0&&<p style={{color:C.textMut,fontSize:13,textAlign:"center",padding:"24px 0"}}>Sin datos todavía</p>}
+          {[...hist].reverse().map((h,i)=>(
+            <div key={i} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,padding:"14px 16px",marginBottom:8}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <p style={{fontSize:18,fontWeight:700,color:C.accent}}>{h.weight>0?`${h.weight}${unit} × ${h.reps} reps`:`${h.reps} reps`}</p>
+                <p style={{fontSize:12,color:C.textMut}}>{h.date}</p>
+              </div>
+              {h.note&&<p style={{margin:"5px 0 0",fontSize:12,color:C.textSec}}>"{h.note}"</p>}
             </div>
           ))}
         </div>
@@ -431,103 +382,125 @@ function App(){
     );
   }
 
-  // ── HOME ───────────────────────────────────────────────────────
+  // HOME
   if(screen==="home"){
+    const h=new Date().getHours();
+    const greet=h<13?"Buenos días":h<20?"Buenas tardes":"Buenas noches";
     const allRec=sessions.flatMap(s=>s.exercises.map(ex=>({ex,s,d:getLog(s.id,ex.name)})).filter(x=>x.d));
     return(
-      <div style={{minHeight:"100vh",background:T.bg,paddingBottom:50}}>
-        <div style={{position:"fixed",top:-80,right:-80,width:280,height:280,background:`radial-gradient(circle,${A}12 0%,transparent 70%)`,pointerEvents:"none",zIndex:0}}/>
-        <div style={{padding:"52px 22px 0",position:"relative",zIndex:1,display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+      <div style={{minHeight:"100vh",background:C.bg,paddingBottom:60}}>
+        {/* Header */}
+        <div style={{padding:"56px 22px 0",display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
           <div>
-            <p style={{fontSize:11,color:T.tx3,letterSpacing:2,fontFamily:"Barlow Condensed",fontWeight:700}}>FULL BODY · HIPERTROFIA</p>
-            <h1 style={{fontFamily:"Barlow Condensed",fontSize:70,fontWeight:900,letterSpacing:2,lineHeight:0.88,marginTop:6,color:T.tx}}>
-              STRONG<br/><span style={{WebkitTextStroke:`2px ${A}`,WebkitTextFillColor:"transparent"}}> BASE</span>
-            </h1>
+            <p style={{fontSize:14,color:C.textSec,fontWeight:500}}>{greet}</p>
+            <p style={{fontSize:26,fontWeight:800,marginTop:4,lineHeight:1.15}}>Tu entrenamiento<br/>de hoy</p>
           </div>
-          <button onClick={()=>setSettingsOpen(true)} style={{...bBtn(T),width:40,height:40,marginTop:8,fontSize:18}}>⚙️</button>
+          <button onClick={()=>setSettings(true)} style={{...IBtn,width:42,height:42,marginTop:4,borderRadius:12,fontSize:18}}>⚙️</button>
         </div>
         {/* Stats */}
-        <div style={{display:"flex",gap:8,padding:"18px 22px 0",position:"relative",zIndex:1}}>
-          <SCrd label="RACHA" value={`${streak.count}🔥`} T={T}/>
-          <SCrd label="RÉCORDS" value={allRec.length} T={T}/>
-          <SCrd label={unit.toUpperCase()} value="✓" T={T}/>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,padding:"20px 22px 0"}}>
+          {[{label:"Racha",value:`${streak.count} días`,icon:"🔥"},{label:"Sesiones",value:Object.keys(sesDates).length,icon:"✓"},{label:"Récords",value:allRec.length,icon:"↑"}].map(x=>(
+            <div key={x.label} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,padding:"14px 8px",textAlign:"center"}}>
+              <p style={{fontSize:18,marginBottom:4}}>{x.icon}</p>
+              <p style={{fontSize:18,fontWeight:800}}>{x.value}</p>
+              <p style={{fontSize:10,color:C.textMut,fontWeight:600,letterSpacing:1,marginTop:2}}>{x.label.toUpperCase()}</p>
+            </div>
+          ))}
         </div>
-        {/* Sessions */}
-        <div style={{padding:"20px 22px 0",position:"relative",zIndex:1}}>
-          <SLabel t="SESIONES"/>
+        {/* Paused session */}
+        {savedWS&&(()=>{const s=sessions.find(s=>s.id===savedWS.sId);if(!s)return null;const ex=s.exercises[savedWS.exIdx];return(
+          <div onClick={()=>startSession(s)} style={{margin:"18px 22px 0",borderRadius:20,overflow:"hidden",cursor:"pointer",position:"relative",height:96}}>
+            <img src={ex?.image||gImg(ex?.name||"")} alt="" style={{width:"100%",height:"100%",objectFit:"cover",filter:"brightness(0.35)"}}/>
+            <div style={{position:"absolute",inset:0,background:`linear-gradient(90deg,${C.accent}22,transparent)`,display:"flex",alignItems:"center",padding:"0 18px",gap:14}}>
+              <div style={{width:40,height:40,borderRadius:12,background:C.accent,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>⏸</div>
+              <div><p style={{fontSize:12,color:C.accent,fontWeight:700,letterSpacing:0.5}}>SESIÓN EN PAUSA</p><p style={{fontSize:15,fontWeight:700,marginTop:2}}>{s.name} · Ejercicio {savedWS.exIdx+1}/{s.exercises.length}</p></div>
+              <span style={{marginLeft:"auto",color:C.accent,fontSize:22}}>›</span>
+            </div>
+          </div>
+        );})()}
+        {/* Suggested */}
+        {suggested&&(
+          <div style={{padding:"20px 22px 0"}}>
+            <p style={{...SecT,marginBottom:12}}>SUGERIDA PARA HOY</p>
+            <div onClick={()=>startSession(suggested)} style={{borderRadius:22,overflow:"hidden",cursor:"pointer",position:"relative",height:190}}>
+              <img src={suggested.exercises[0]?.image||gImg("")} alt="" style={{width:"100%",height:"100%",objectFit:"cover",filter:"brightness(0.4)"}}/>
+              <div style={{position:"absolute",inset:0,background:"linear-gradient(to top,rgba(12,12,14,0.97) 0%,rgba(12,12,14,0.15) 60%,transparent 100%)"}}/>
+              <div style={{position:"absolute",top:14,left:14}}>
+                <div style={{width:36,height:36,borderRadius:10,background:C.accent,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:16,color:"#000"}}>{suggested.icon}</div>
+              </div>
+              <div style={{position:"absolute",bottom:16,left:18,right:18,display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
+                <div>
+                  <p style={{fontSize:22,fontWeight:800,lineHeight:1}}>{suggested.name}</p>
+                  <p style={{fontSize:13,color:"rgba(255,255,255,0.5)",marginTop:4}}>{suggested.subtitle} · {suggested.exercises.length} ejercicios</p>
+                  {sesDates[suggested.id]
+                    ? <p style={{fontSize:11,color:C.accent,fontWeight:600,marginTop:4}}>Última vez: {sesDates[suggested.id].display}</p>
+                    : <p style={{fontSize:11,color:C.accentDim,fontWeight:600,marginTop:4}}>Sin completar aún</p>}
+                </div>
+                <div style={{width:40,height:40,borderRadius:12,background:C.accent,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,color:"#000",flexShrink:0}}>▶</div>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* All sessions */}
+        <div style={{padding:"22px 22px 0"}}>
+          <p style={SecT}>TODAS LAS SESIONES</p>
           {sessions.map((s,si)=>{
-            const done=s.exercises.filter(e=>getLog(s.id,e.name)).length;
-            const total=s.exercises.length;
-            const pct=total>0?done/total:0;
+            const isSug=s.id===suggested?.id,hasSaved=savedWS?.sId===s.id,lastDate=sesDates[s.id];
             return(
-              <div key={s.id} style={{background:T.card,border:`1px solid ${T.bd}`,borderRadius:18,padding:18,marginBottom:14}}>
-                {/* header */}
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-                  <div style={{display:"flex",alignItems:"center",gap:12,cursor:"pointer"}} onClick={()=>startSession(s)}>
-                    <div style={{width:50,height:50,borderRadius:13,display:"flex",alignItems:"center",justifyContent:"center",background:pct===1?A:T.card2,border:`2px solid ${pct>0&&pct<1?A+"55":T.bd}`,fontSize:22}}>{s.icon}</div>
-                    <div>
-                      <p style={{margin:0,fontFamily:"Barlow Condensed",fontSize:21,fontWeight:800,color:T.tx}}>{s.name}</p>
-                      <p style={{margin:"1px 0 0",fontSize:12,color:T.tx3,fontFamily:"Barlow"}}>{s.subtitle} · {total} ejercicios</p>
+              <div key={s.id} style={{background:C.surface,border:`1px solid ${hasSaved?`${C.accent}55`:C.border}`,borderRadius:20,marginBottom:12,overflow:"hidden"}}>
+                <div style={{display:"flex",alignItems:"center",gap:14,padding:"16px 16px 10px",cursor:"pointer"}} onClick={()=>startSession(s)}>
+                  <div style={{width:44,height:44,borderRadius:13,background:isSug?C.accent:`${C.accent}18`,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:16,color:isSug?"#000":C.accent,flexShrink:0}}>{s.icon}</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <p style={{fontSize:16,fontWeight:700}}>{s.name}</p>
+                      {isSug&&<span style={{fontSize:9,background:`${C.accent}20`,color:C.accent,borderRadius:6,padding:"2px 7px",fontWeight:700,letterSpacing:0.5}}>HOY</span>}
                     </div>
+                    <p style={{fontSize:12,color:C.textSec,marginTop:2}}>{s.subtitle} · {s.exercises.length} ejercicios</p>
+                    {lastDate
+                      ? <p style={{fontSize:11,color:C.textMut,marginTop:2}}>Última vez: {lastDate.display}</p>
+                      : <p style={{fontSize:11,color:C.textMut,marginTop:2}}>Sin completar aún</p>}
                   </div>
-                  <div style={{display:"flex",alignItems:"center",gap:8}}>
-                    <p style={{fontFamily:"Barlow Condensed",fontSize:20,fontWeight:700,color:done>0?A:T.tx3,cursor:"pointer"}} onClick={()=>startSession(s)}>{done}/{total}</p>
-                  </div>
+                  <button onClick={e=>{e.stopPropagation();setReorderSi(si);}} style={{...IBtn,width:32,height:32,fontSize:13,flexShrink:0}}>⇅</button>
                 </div>
-                {/* progress */}
-                <div style={{background:T.card2,borderRadius:99,height:3,marginBottom:12,cursor:"pointer"}} onClick={()=>startSession(s)}>
-                  <div style={{height:"100%",borderRadius:99,background:A,width:`${pct*100}%`,transition:"width 0.5s"}}/>
-                </div>
-                {/* exercise list with swap */}
-                <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                {/* Exercise thumbnails */}
+                <div style={{display:"flex",gap:5,padding:"0 16px 12px",overflowX:"auto"}}>
                   {s.exercises.map((ex,ei)=>{
-                    const gc=GROUP_COLORS[ex.group]||A;
-                    const d=getLog(s.id,ex.name);
-                    const tag=getTag(ex);
+                    const d=getLog(s.id,ex.name);const gc=GC[ex.group]||C.accent;
                     return(
-                      <div key={ex.id||ei} style={{display:"flex",alignItems:"center",gap:8,background:T.card2,borderRadius:12,overflow:"hidden"}}>
-                        <div style={{width:52,height:44,flexShrink:0,overflow:"hidden"}}>
-                          <img src={ex.image} alt={ex.name} style={{width:"100%",height:"100%",objectFit:"cover",filter:"brightness(0.65)"}} onError={e=>e.target.style.display="none"}/>
+                      <div key={ex.id||ei} style={{flexShrink:0,position:"relative",cursor:"pointer"}} onClick={e=>{e.stopPropagation();setSwapModal({si,ei,group:ex.group});setLibQ("");}}>
+                        <div style={{width:52,height:52,borderRadius:12,overflow:"hidden",border:`1.5px solid ${C.border}`}}>
+                          <img src={ex.image||gImg(ex.name)} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
                         </div>
-                        <div style={{flex:1,minWidth:0,padding:"6px 0"}}>
-                          <p style={{margin:0,fontFamily:"Barlow Condensed",fontSize:14,fontWeight:800,color:T.tx,lineHeight:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{ex.name}</p>
-                          <div style={{display:"flex",gap:5,marginTop:2,alignItems:"center"}}>
-                            <span style={{fontSize:9,color:gc,background:gc+"20",borderRadius:4,padding:"1px 5px",fontFamily:"Barlow",fontWeight:600}}>{ex.group}</span>
-                            {d&&<span style={{fontSize:9,color:A,fontFamily:"Barlow Condensed",fontWeight:700}}>{d.lastWeight>0?`${d.lastWeight}${unit}×${d.lastReps}`:`${d.lastReps}r`}</span>}
-                          </div>
+                        <div style={{position:"absolute",bottom:0,left:0,right:0,height:16,background:"linear-gradient(to top,rgba(0,0,0,0.7),transparent)",borderRadius:"0 0 10px 10px",display:"flex",alignItems:"flex-end",justifyContent:"center",paddingBottom:2}}>
+                          <div style={{width:5,height:5,borderRadius:99,background:gc}}/>
                         </div>
-                        <div style={{display:"flex",gap:4,padding:"0 8px",flexShrink:0}}>
-                          {d&&<button onClick={()=>setHistModal({exName:ex.name,sessionId:s.id,muscle:ex.muscle})} style={{...bBtn(T),width:30,height:30,fontSize:13}}>📈</button>}
-                          <button onClick={()=>{setSwapModal({sessionIdx:si,exIdx:ei,group:ex.group});setLibFilter("");}} style={{...bBtn(T),width:30,height:30,fontSize:13,color:A}}>⇄</button>
-                        </div>
+                        {d&&<div style={{position:"absolute",top:-3,right:-3,width:14,height:14,borderRadius:99,background:C.accent,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                          <span style={{fontSize:8,color:"#000",fontWeight:900}}>✓</span>
+                        </div>}
                       </div>
                     );
                   })}
                 </div>
-                {/* start button */}
-                <button onClick={()=>startSession(s)} style={{...fBtn(A),marginTop:14}}>▶ EMPEZAR SESIÓN</button>
+                <div style={{padding:"0 16px 14px"}}>
+                  <button onClick={()=>startSession(s)} style={{...PBtn,fontSize:14,padding:"12px"}}>{hasSaved?"⏸  Continuar sesión":"▶  Empezar sesión"}</button>
+                </div>
               </div>
             );
           })}
         </div>
         {/* Records */}
         {allRec.length>0&&(
-          <div style={{padding:"4px 22px",position:"relative",zIndex:1}}>
-            <SLabel t="MIS RÉCORDS"/>
+          <div style={{padding:"8px 22px 0"}}>
+            <p style={SecT}>MIS RÉCORDS</p>
             {allRec.map(({ex,s,d})=>(
-              <div key={ex.name+s.id} onClick={()=>setHistModal({exName:ex.name,sessionId:s.id,muscle:ex.muscle})}
-                style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"11px 0",borderBottom:`1px solid ${T.bd}`,cursor:"pointer"}}>
-                <div style={{flex:1,minWidth:0}}>
-                  <p style={{margin:0,fontSize:14,fontFamily:"Barlow",color:T.tx,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{ex.name}</p>
-                  <p style={{margin:0,fontSize:11,color:GROUP_COLORS[ex.group]||T.tx3,fontFamily:"Barlow"}}>{ex.group} · {s.name}</p>
+              <div key={ex.name+s.id} onClick={()=>setHistModal({name:ex.name,sId:s.id,muscle:ex.muscle})} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 0",borderBottom:`1px solid ${C.border}`,cursor:"pointer"}}>
+                <div style={{width:40,height:40,borderRadius:10,overflow:"hidden",flexShrink:0}}><img src={ex.image||gImg(ex.name)} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/></div>
+                <div style={{flex:1,minWidth:0}}><p style={{fontSize:14,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{ex.name}</p><p style={{fontSize:11,color:GC[ex.group]||C.textSec,marginTop:1,fontWeight:500}}>{ex.group}</p></div>
+                <div style={{textAlign:"right",flexShrink:0}}>
+                  <p style={{fontSize:16,fontWeight:700,color:C.accent}}>{d.lastWeight>0?`${d.lastWeight}${unit} × ${d.lastReps}`:`${d.lastReps} reps`}</p>
+                  {(d.nextWeight!==d.lastWeight||d.nextReps!==d.lastReps)&&<p style={{fontSize:10,color:C.textMut,marginTop:1}}>→ {d.nextWeight>0?`${d.nextWeight}${unit}×`:""}{d.nextReps}</p>}
                 </div>
-                <div style={{textAlign:"right",flexShrink:0,display:"flex",alignItems:"center",gap:8}}>
-                  <div>
-                    <p style={{margin:0,fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:A}}>{d.lastWeight>0?`${d.lastWeight}${unit}×${d.lastReps}`:`${d.lastReps} reps`}</p>
-                    {(d.nextWeight!==d.lastWeight||d.nextReps!==d.lastReps)&&<p style={{margin:0,fontSize:10,color:T.tx3,fontFamily:"Barlow"}}>→{d.nextWeight>0?`${d.nextWeight}${unit}×`:""}{d.nextReps}</p>}
-                  </div>
-                  <span style={{color:T.tx3}}>›</span>
-                </div>
+                <span style={{color:C.textMut,marginLeft:2}}>›</span>
               </div>
             ))}
           </div>
@@ -536,163 +509,141 @@ function App(){
     );
   }
 
-  // ── EXERCISE SCREEN ────────────────────────────────────────────
-  if(screen==="exercise"&&activeSession){
-    const ex=activeSession.exercises[exIdx];
-    const plan=getPlan(activeSession.id,ex);
-    const tag=getTag(ex);
-    const gc=GROUP_COLORS[ex.group]||A;
-    const imgSrc=imgErr[ex.id]?`https://picsum.photos/seed/${ex.id}/600/300`:ex.image;
-    const restTotal=ex.rest||90;
+  // EXERCISE
+  if(screen==="exercise"&&activeS){
+    const ex=activeS.exercises[exIdx];
+    const nextEx=exIdx+1<activeS.exercises.length?activeS.exercises[exIdx+1]:null;
+    const plan=getPlan(activeS.id,ex);
+    const tag=getTag(ex);const gc=GC[ex.group]||C.accent;
+    const pct=(exIdx/activeS.exercises.length)*100;
+    const imgUrl=ex.image||gImg(ex.name);
     return(
-      <div style={{minHeight:"100vh",background:T.bg,color:T.tx,paddingBottom:40}}>
-        {/* topbar */}
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"50px 18px 10px",background:T.bg,position:"sticky",top:0,zIndex:5}}>
-          <button onClick={()=>{setTimerOn(false);setScreen("home");}} style={bBtn(T)}>✕</button>
-          <div style={{textAlign:"center"}}>
-            <p style={{margin:0,fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,letterSpacing:1,color:T.tx}}>{activeSession.name}</p>
-            <p style={{margin:0,fontSize:11,color:T.tx3,fontFamily:"Barlow"}}>{exIdx+1} / {activeSession.exercises.length}</p>
-          </div>
-          <div style={{background:T.card2,borderRadius:10,padding:"5px 11px",border:`1px solid ${T.bd}`}}>
-            <p style={{margin:0,fontFamily:"Barlow Condensed",fontSize:18,color:A,fontWeight:700}}>{fmt(totalSecs)}</p>
+      <div style={{minHeight:"100vh",background:C.bg,paddingBottom:40}}>
+        {/* Topbar */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"52px 18px 10px",position:"sticky",top:0,background:C.bg,zIndex:10}}>
+          <button onClick={()=>{setTimerOn(false);setScreen("home");}} style={IBtn}>✕</button>
+          <div style={{textAlign:"center"}}><p style={{fontSize:13,fontWeight:700}}>{activeS.name}</p><p style={{fontSize:11,color:C.textSec,marginTop:2}}>{exIdx+1} de {activeS.exercises.length}</p></div>
+          <div style={{background:C.surface,borderRadius:12,padding:"6px 12px",border:`1px solid ${C.border}`}}><p style={{fontSize:15,fontWeight:700,color:C.accent}}>{fmt(totalSecs)}</p></div>
+        </div>
+        {/* Progress */}
+        <div style={{height:2,background:C.border,margin:"0 18px"}}><div style={{height:"100%",background:C.accent,width:`${pct}%`,transition:"width 0.6s",borderRadius:99}}/></div>
+        {/* Hero image */}
+        <div style={{position:"relative",height:240,margin:"12px 0 0",overflow:"hidden"}}>
+          <img src={imgUrl} alt={ex.name} style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"center top"}}/>
+          <div style={{position:"absolute",inset:0,background:`linear-gradient(to top,${C.bg} 0%,rgba(12,12,14,0.45) 55%,transparent 100%)`}}/>
+          <div style={{position:"absolute",bottom:18,left:18,right:18}}>
+            <div style={{display:"flex",gap:6,marginBottom:8}}><Chip label={ex.group} color={gc}/><Chip label={tag.l} color={tag.c}/></div>
+            <p style={{fontSize:28,fontWeight:900,lineHeight:1,letterSpacing:-0.5}}>{ex.name}</p>
+            <p style={{fontSize:13,color:"rgba(255,255,255,0.5)",marginTop:5}}>{ex.muscle}</p>
           </div>
         </div>
-        {/* image */}
-        <div style={{position:"relative",height:220,overflow:"hidden"}}>
-          <img src={imgSrc} alt={ex.name} onError={()=>setImgErr(p=>({...p,[ex.id]:true}))} style={{width:"100%",height:"100%",objectFit:"cover",filter:"brightness(0.45) saturate(0.7)"}}/>
-          <div style={{position:"absolute",inset:0,background:`linear-gradient(to top,${T.bg} 0%,rgba(0,0,0,0.2) 65%,transparent 100%)`}}/>
-          <div style={{position:"absolute",bottom:14,left:18,right:18}}>
-            <div style={{display:"flex",gap:6,marginBottom:5,flexWrap:"wrap"}}>
-              <span style={{fontSize:10,color:gc,background:gc+"25",borderRadius:6,padding:"2px 8px",fontFamily:"Barlow",fontWeight:600}}>{ex.group}</span>
-              <span style={{fontSize:10,color:tag.color,background:tag.color+"20",borderRadius:6,padding:"2px 8px",fontFamily:"Barlow",fontWeight:600}}>{tag.label}</span>
-            </div>
-            <p style={{fontFamily:"Barlow Condensed",fontSize:32,fontWeight:900,lineHeight:1,color:"#fff"}}>{ex.name.toUpperCase()}</p>
-            <p style={{fontSize:12,color:"rgba(255,255,255,0.65)",fontFamily:"Barlow",marginTop:3}}>{ex.muscle}</p>
-          </div>
-        </div>
-        {/* rest */}
+        {/* Rest */}
         {restOn&&restSecs>0&&(
-          <div style={{margin:"10px 18px 0",background:T.card,border:`1px solid ${A}44`,borderRadius:14,padding:"11px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <div>
-              <p style={{margin:0,fontSize:10,color:T.tx3,letterSpacing:2,fontFamily:"Barlow"}}>DESCANSO</p>
-              <p style={{margin:0,fontFamily:"Barlow Condensed",fontSize:28,fontWeight:800,color:A}}>{fmt(restSecs)}</p>
+          <div style={{margin:"12px 18px 0",background:C.surface,border:`1px solid ${C.accent}44`,borderRadius:18,padding:"14px 16px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div>
+                <p style={{fontSize:10,color:C.textMut,letterSpacing:1.5,fontWeight:700,marginBottom:4}}>DESCANSO</p>
+                <p style={{fontSize:36,fontWeight:800,color:C.accent,lineHeight:1}}>{fmt(restSecs)}</p>
+              </div>
+              <div style={{display:"flex",gap:10,alignItems:"center"}}>
+                <svg width="44" height="44" style={{transform:"rotate(-90deg)"}}>
+                  <circle cx="22" cy="22" r="18" fill="none" stroke={C.border} strokeWidth="3"/>
+                  <circle cx="22" cy="22" r="18" fill="none" stroke={C.accent} strokeWidth="3" strokeDasharray={`${2*Math.PI*18}`} strokeDashoffset={`${2*Math.PI*18*(restSecs/(ex.rest||90))}`} style={{transition:"stroke-dashoffset 1s linear"}}/>
+                </svg>
+                <button onClick={()=>{setRestOn(false);setRestSecs(0);}} style={{...GBtn,width:"auto",padding:"6px 12px",fontSize:12}}>Saltar</button>
+              </div>
             </div>
-            <div style={{display:"flex",gap:8,alignItems:"center"}}>
-              <svg width="40" height="40" style={{transform:"rotate(-90deg)"}}>
-                <circle cx="20" cy="20" r="16" fill="none" stroke={T.card2} strokeWidth="3.5"/>
-                <circle cx="20" cy="20" r="16" fill="none" stroke={A} strokeWidth="3.5"
-                  strokeDasharray={`${2*Math.PI*16}`}
-                  strokeDashoffset={`${2*Math.PI*16*(restSecs/restTotal)}`}
-                  style={{transition:"stroke-dashoffset 1s linear"}}/>
-              </svg>
-              <button onClick={()=>{setRestOn(false);setRestSecs(0);}} style={{...bBtn(T),padding:"5px 10px",fontSize:11,fontFamily:"Barlow",color:T.tx3}}>Saltar</button>
-            </div>
+            {nextEx&&(
+              <div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:10}}>
+                <div style={{width:38,height:38,borderRadius:9,overflow:"hidden",flexShrink:0}}><img src={nextEx.image||gImg(nextEx.name)} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/></div>
+                <div style={{flex:1,minWidth:0}}><p style={{fontSize:10,color:C.textMut,fontWeight:700,letterSpacing:1,marginBottom:2}}>SIGUIENTE</p><p style={{fontSize:14,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{nextEx.name}</p></div>
+                <Chip label={getTag(nextEx).l} color={getTag(nextEx).c}/>
+              </div>
+            )}
           </div>
         )}
-        {/* sets dots */}
+        {/* Sets dots */}
         <div style={{display:"flex",justifyContent:"center",gap:6,padding:"12px 0"}}>
-          {Array.from({length:ex.sets}).map((_,i)=>(
-            <div key={i} style={{width:i===setIdx?24:8,height:8,borderRadius:99,background:i<setIdx?A:i===setIdx?A:T.card2,transition:"all 0.3s"}}/>
-          ))}
+          {Array.from({length:ex.sets}).map((_,i)=><div key={i} style={{width:i===setIdx?28:8,height:8,borderRadius:99,background:i<setIdx?C.accent:i===setIdx?C.accent:C.border,transition:"all 0.3s"}}/>)}
         </div>
-        <div style={{padding:"4px 18px 30px"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-            <p style={{margin:0,fontFamily:"Barlow Condensed",fontSize:25,fontWeight:800,color:T.tx}}>SERIE {setIdx+1}<span style={{color:T.tx3}}> / {ex.sets}</span></p>
-            <p style={{margin:0,fontSize:12,color:T.tx3,fontFamily:"Barlow"}}>Obj: {plan.weight>0?`${plan.weight}${unit}×`:""}{plan.reps}</p>
+        <div style={{padding:"8px 18px 30px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:14}}>
+            <p style={{fontSize:22,fontWeight:800}}>Serie {setIdx+1}<span style={{color:C.textMut,fontWeight:400}}> / {ex.sets}</span></p>
+            <p style={{fontSize:12,color:C.textSec}}>Última: {plan.weight>0?`${plan.weight}${unit} × `:""}{plan.reps}{ex.isTime?"s":" reps"}</p>
           </div>
-          {/* inputs */}
-          <div style={{display:"flex",gap:10,marginBottom:10}}>
+          {/* Inputs */}
+          <div style={{display:"flex",gap:10,marginBottom:12}}>
             {!ex.isGoma&&!ex.isCuerpo&&(
-              <div style={{flex:1.3,background:T.card,borderRadius:14,padding:"11px 12px",border:`1px solid ${T.bd}`}}>
-                <p style={{margin:"0 0 7px",fontSize:10,color:T.tx3,letterSpacing:2,fontFamily:"Barlow Condensed",fontWeight:700}}>{ex.isMancuerna?"MANCUERNA":`PESO (${unit})`}</p>
+              <div style={{flex:1.3,background:C.surface,borderRadius:16,padding:14,border:`1px solid ${C.border}`}}>
+                <p style={{fontSize:10,color:C.textMut,letterSpacing:1.5,fontWeight:700,marginBottom:8}}>{ex.isMancuerna?"MANCUERNA":`PESO (${unit})`}</p>
                 {ex.isMancuerna?(
                   <div style={{display:"flex",gap:4}}>
-                    {MANCUERNAS.map(v=>(
-                      <button key={v} onClick={()=>setWeightI(String(v))} style={{flex:1,padding:"7px 2px",background:parseFloat(weightI)===v?A:T.card2,border:"none",borderRadius:7,cursor:"pointer",color:parseFloat(weightI)===v?"#000":T.tx2,fontFamily:"Barlow Condensed",fontWeight:700,fontSize:13}}>{v}</button>
-                    ))}
+                    {MANCUERNAS.map(v=><button key={v} onClick={()=>setWeightI(String(v))} style={{flex:1,padding:"8px 2px",background:parseFloat(weightI)===v?C.accent:C.card,border:"none",borderRadius:8,cursor:"pointer",color:parseFloat(weightI)===v?"#000":C.textSec,fontWeight:700,fontSize:13}}>{v}</button>)}
                   </div>
                 ):(
-                  <div style={{display:"flex",alignItems:"center",gap:6}}>
-                    <button onClick={()=>setWeightI(v=>String(Math.max(0,Math.round((parseFloat(v||0)-2.5)*10)/10)))} style={sBtn(T)}>−</button>
-                    <input value={weightI} onChange={e=>setWeightI(e.target.value)} style={nInput(T)} type="number" inputMode="decimal"/>
-                    <button onClick={()=>setWeightI(v=>String(Math.round((parseFloat(v||0)+2.5)*10)/10))} style={sBtn(T)}>+</button>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <button onClick={()=>setWeightI(v=>String(Math.max(0,Math.round((parseFloat(v||0)-2.5)*10)/10)))} style={SBtn}>−</button>
+                    <input value={weightI} onChange={e=>setWeightI(e.target.value)} style={NIn} type="number" inputMode="decimal"/>
+                    <button onClick={()=>setWeightI(v=>String(Math.round((parseFloat(v||0)+2.5)*10)/10))} style={SBtn}>+</button>
                   </div>
                 )}
               </div>
             )}
-            <div style={{flex:1,background:T.card,borderRadius:14,padding:"11px 12px",border:`1px solid ${T.bd}`}}>
-              <p style={{margin:"0 0 7px",fontSize:10,color:T.tx3,letterSpacing:2,fontFamily:"Barlow Condensed",fontWeight:700}}>{ex.isTime?"SEG":"REPS"}</p>
-              <div style={{display:"flex",alignItems:"center",gap:6}}>
-                <button onClick={()=>setRepsI(v=>String(Math.max(1,parseInt(v||0)-1)))} style={sBtn(T)}>−</button>
-                <input value={repsI} onChange={e=>setRepsI(e.target.value)} style={nInput(T)} type="number" inputMode="numeric"/>
-                <button onClick={()=>setRepsI(v=>String(parseInt(v||0)+1))} style={sBtn(T)}>+</button>
+            <div style={{flex:1,background:C.surface,borderRadius:16,padding:14,border:`1px solid ${C.border}`}}>
+              <p style={{fontSize:10,color:C.textMut,letterSpacing:1.5,fontWeight:700,marginBottom:8}}>{ex.isTime?"SEGUNDOS":"REPS"}</p>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <button onClick={()=>setRepsI(v=>String(Math.max(1,parseInt(v||0)-1)))} style={SBtn}>−</button>
+                <input value={repsI} onChange={e=>setRepsI(e.target.value)} style={NIn} type="number" inputMode="numeric"/>
+                <button onClick={()=>setRepsI(v=>String(parseInt(v||0)+1))} style={SBtn}>+</button>
               </div>
             </div>
           </div>
-          {/* note */}
-          <input value={noteI} onChange={e=>setNoteI(e.target.value)} placeholder="💬 Nota (opcional)..."
-            style={{width:"100%",background:T.card,border:`1px solid ${T.bd}`,borderRadius:10,padding:"10px 13px",color:T.tx,fontSize:13,fontFamily:"Barlow",outline:"none",marginBottom:10}}/>
-          {/* cues */}
+          <input value={noteI} onChange={e=>setNoteI(e.target.value)} placeholder="Añadir nota..." style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"11px 14px",color:C.text,fontSize:13,outline:"none",marginBottom:10}}/>
           {ex.cues&&ex.cues.length>0&&(
-            <div style={{background:T.card,borderRadius:12,marginBottom:10,border:`1px solid ${T.bd}`,overflow:"hidden"}}>
-              <button onClick={()=>setShowCues(c=>!c)} style={{width:"100%",background:"none",border:"none",padding:"10px 14px",display:"flex",justifyContent:"space-between",cursor:"pointer",color:T.tx}}>
-                <span style={{fontSize:10,color:T.tx3,letterSpacing:2,fontFamily:"Barlow Condensed",fontWeight:700}}>TÉCNICA</span>
-                <span style={{color:T.tx3,transform:showCues?"rotate(180deg)":"none",transition:"transform 0.3s"}}>▼</span>
+            <div style={{background:C.surface,borderRadius:14,marginBottom:12,border:`1px solid ${C.border}`,overflow:"hidden"}}>
+              <button onClick={()=>setShowCues(c=>!c)} style={{width:"100%",background:"none",border:"none",padding:"12px 16px",display:"flex",justifyContent:"space-between",cursor:"pointer",color:C.textSec,alignItems:"center"}}>
+                <span style={{fontSize:11,letterSpacing:1.5,fontWeight:700}}>TÉCNICA</span>
+                <span style={{fontSize:12,transform:showCues?"rotate(180deg)":"none",transition:"transform 0.2s"}}>▼</span>
               </button>
-              {showCues&&(
-                <div style={{padding:"0 14px 12px"}}>
-                  {ex.cues.map((c,i)=>(
-                    <div key={i} style={{display:"flex",gap:8,marginBottom:5}}>
-                      <span style={{color:A,flexShrink:0}}>·</span>
-                      <p style={{margin:0,fontSize:13,color:T.tx2,fontFamily:"Barlow",lineHeight:1.5}}>{c}</p>
-                    </div>
-                  ))}
-                  {ex.equipment&&<p style={{margin:"8px 0 0",fontSize:11,color:T.tx3,fontFamily:"Barlow"}}>📦 {ex.equipment}</p>}
-                </div>
-              )}
+              {showCues&&<div style={{padding:"0 16px 14px"}}>
+                {ex.cues.map((c,i)=><div key={i} style={{display:"flex",gap:10,marginBottom:7}}><div style={{width:4,height:4,borderRadius:99,background:C.accent,flexShrink:0,marginTop:7}}/><p style={{margin:0,fontSize:13,color:C.textSec,lineHeight:1.55}}>{c}</p></div>)}
+              </div>}
             </div>
           )}
-          {/* log button */}
-          <button onClick={logSet} style={{...fBtn(A),marginBottom:14}}>
-            {setIdx+1<ex.sets?"✓  SERIE COMPLETADA":"★  TERMINAR EJERCICIO"}
-          </button>
-          {/* logged sets */}
+          <button onClick={logSet} style={{...PBtn,fontSize:15,marginBottom:16}}>{setIdx+1<ex.sets?"Serie completada  ✓":"Terminar ejercicio  ★"}</button>
           {setLogs.length>0&&(
-            <div>
-              <SLabel t="SERIES REGISTRADAS"/>
+            <div style={{background:C.surface,borderRadius:16,border:`1px solid ${C.border}`,overflow:"hidden"}}>
+              <p style={{fontSize:10,color:C.textMut,letterSpacing:1.5,fontWeight:700,padding:"12px 14px 8px"}}>SERIES REGISTRADAS</p>
               {setLogs.map((l,i)=>(
-                <div key={i} style={{padding:"7px 0",borderBottom:`1px solid ${T.bd}`}}>
-                  <div style={{display:"flex",justifyContent:"space-between"}}>
-                    <span style={{fontSize:13,color:T.tx3,fontFamily:"Barlow"}}>Serie {i+1}</span>
-                    <span style={{fontFamily:"Barlow Condensed",fontSize:17,fontWeight:700,color:i===setLogs.length-1?A:T.tx2}}>{l.weight>0?`${l.weight}${unit} × `:""}{l.reps}{ex.isTime?"s":" reps"}</span>
+                <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",borderTop:`1px solid ${C.border}`}}>
+                  <p style={{fontSize:13,color:C.textSec,fontWeight:500}}>Serie {i+1}</p>
+                  <div style={{textAlign:"right"}}>
+                    <p style={{fontSize:16,fontWeight:700,color:i===setLogs.length-1?C.accent:C.text}}>{l.weight>0?`${l.weight}${unit} × `:""}{l.reps}{ex.isTime?"s":" reps"}</p>
+                    {l.note&&<p style={{fontSize:11,color:C.textMut,marginTop:1}}>"{l.note}"</p>}
                   </div>
-                  {l.note&&<p style={{margin:"2px 0 0",fontSize:11,color:T.tx3,fontFamily:"Barlow"}}>💬 {l.note}</p>}
                 </div>
               ))}
             </div>
           )}
         </div>
-        {/* progress modal */}
+        {/* Progress modal */}
         {progModal&&(
-          <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.9)",display:"flex",alignItems:"flex-end",zIndex:100,backdropFilter:"blur(8px)"}}>
-            <div style={{background:T.card,borderRadius:"22px 22px 0 0",padding:"26px 20px 50px",width:"100%",maxWidth:430,border:`1px solid ${T.bd}`}}>
-              <div style={{textAlign:"center",marginBottom:20}}>
-                <p style={{fontSize:36,marginBottom:6}}>💪</p>
-                <p style={{fontFamily:"Barlow Condensed",fontSize:30,fontWeight:900,color:T.tx}}>EJERCICIO LISTO</p>
-                <p style={{fontSize:13,color:T.tx3,fontFamily:"Barlow"}}>{progModal.ex.name} · {progModal.logs.length} series</p>
-              </div>
-              <p style={{fontSize:11,color:T.tx3,letterSpacing:2,fontFamily:"Barlow Condensed",fontWeight:700,textAlign:"center",marginBottom:12}}>¿PRÓXIMA SESIÓN?</p>
-              {[
-                {key:"same",icon:"🔁",title:"MANTENER",sub:"Mismo peso y reps",col:T.tx2,bd:T.bd},
-                {key:"weight",icon:"⬆",title:progModal.ex.isMancuerna?"SUBIR MANCUERNA":"SUBIR PESO +2.5kg",sub:"Más carga la próxima",col:A,bd:A+"55"},
-                {key:"reps",icon:"🔢",title:"SUBIR REPETICIÓN",sub:"+1 rep la próxima",col:AD,bd:AD+"44"},
-              ].map(o=>(
-                <button key={o.key} onClick={()=>handleProg(o.key)} style={{width:"100%",display:"flex",alignItems:"center",gap:12,background:T.card2,border:`1px solid ${o.bd}`,borderRadius:14,padding:"13px 14px",marginBottom:9,cursor:"pointer",textAlign:"left",fontFamily:"inherit",color:T.tx}}>
-                  <span style={{fontSize:20}}>{o.icon}</span>
-                  <div>
-                    <p style={{margin:0,fontFamily:"Barlow Condensed",fontSize:16,fontWeight:800,color:o.col}}>{o.title}</p>
-                    <p style={{margin:0,fontSize:11,color:T.tx3,fontFamily:"Barlow"}}>{o.sub}</p>
-                  </div>
+          <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",display:"flex",alignItems:"flex-end",zIndex:100,backdropFilter:"blur(10px)"}}>
+            <div style={{background:C.surface,borderRadius:"24px 24px 0 0",padding:"28px 20px 52px",width:"100%",maxWidth:430,border:`1px solid ${C.border}`}}>
+              <div style={{textAlign:"center",marginBottom:18}}><div style={{fontSize:40,marginBottom:10}}>💪</div><p style={{fontSize:22,fontWeight:800}}>Ejercicio completado</p><p style={{fontSize:13,color:C.textSec,marginTop:4}}>{progModal.ex.name} · {progModal.logs.length} series</p></div>
+              {nextEx&&(
+                <div style={{background:C.card,borderRadius:14,padding:"12px 14px",marginBottom:18,display:"flex",gap:12,alignItems:"center"}}>
+                  <div style={{width:44,height:44,borderRadius:10,overflow:"hidden",flexShrink:0}}><img src={nextEx.image||gImg(nextEx.name)} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/></div>
+                  <div><p style={{fontSize:10,color:C.textMut,fontWeight:700,letterSpacing:1,marginBottom:3}}>SIGUIENTE</p><p style={{fontSize:15,fontWeight:700}}>{nextEx.name}</p><p style={{fontSize:11,color:C.textSec,marginTop:1}}>{getTag(nextEx).l} · {nextEx.sets} series</p></div>
+                </div>
+              )}
+              <p style={{fontSize:10,color:C.textMut,letterSpacing:1.5,fontWeight:700,textAlign:"center",marginBottom:12}}>¿PRÓXIMA SESIÓN?</p>
+              {[{k:"same",icon:"🔁",title:"Mantener",sub:"Mismo peso y reps",color:C.textSec},
+                {k:"weight",icon:"⬆",title:progModal.ex.isMancuerna?"Subir mancuerna":"Subir peso +2.5 kg",sub:"Más carga la próxima vez",color:C.accent},
+                {k:"reps",icon:"🔢",title:"Subir repetición",sub:"+1 rep la próxima vez",color:C.accentDim}].map(o=>(
+                <button key={o.k} onClick={()=>handleProg(o.k)} style={{width:"100%",display:"flex",alignItems:"center",gap:14,background:C.card,border:`1px solid ${o.k==="weight"?`${C.accent}44`:o.k==="reps"?`${C.accentDim}33`:C.border}`,borderRadius:14,padding:"14px 16px",marginBottom:9,cursor:"pointer",textAlign:"left",color:C.text}}>
+                  <span style={{fontSize:22}}>{o.icon}</span>
+                  <div><p style={{margin:0,fontSize:15,fontWeight:700,color:o.color}}>{o.title}</p><p style={{margin:0,fontSize:12,color:C.textMut,marginTop:2}}>{o.sub}</p></div>
                 </button>
               ))}
             </div>
@@ -702,44 +653,19 @@ function App(){
     );
   }
 
-  // ── DONE ───────────────────────────────────────────────────────
+  // DONE
   if(screen==="done") return(
-    <div style={{minHeight:"100vh",background:T.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",padding:"0 30px",color:T.tx}}>
-      <div style={{fontSize:76,marginBottom:14}}>🏆</div>
-      <p style={{fontFamily:"Barlow Condensed",fontSize:60,fontWeight:900,lineHeight:0.85}}>SESIÓN<br/><span style={{color:A}}>LISTA</span></p>
-      <p style={{color:T.tx3,fontFamily:"Barlow",fontSize:14,margin:"16px 0 6px"}}>Tiempo: <span style={{color:T.tx}}>{fmt(totalSecs)}</span></p>
-      <p style={{color:A,fontFamily:"Barlow Condensed",fontSize:20,fontWeight:700,margin:"0 0 44px"}}>🔥 Racha: {streak.count} {streak.count===1?"día":"días"}</p>
-      <button onClick={()=>setScreen("home")} style={{...fBtn(A),maxWidth:300,width:"100%"}}>← INICIO</button>
+    <div style={{minHeight:"100vh",background:C.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",padding:"0 30px"}}>
+      <div style={{fontSize:72,marginBottom:20}}>🏆</div>
+      <p style={{fontSize:13,color:C.textSec,fontWeight:600,letterSpacing:1.5,marginBottom:8}}>SESIÓN COMPLETADA</p>
+      <p style={{fontSize:52,fontWeight:900,lineHeight:0.9,letterSpacing:-1}}>{fmt(totalSecs)}</p>
+      <p style={{fontSize:13,color:C.textMut,marginTop:8,marginBottom:4}}>tiempo de entrenamiento</p>
+      <div style={{display:"flex",alignItems:"center",gap:6,marginTop:16,marginBottom:48}}><span style={{fontSize:20}}>🔥</span><p style={{fontSize:18,fontWeight:700,color:C.accent}}>Racha de {streak.count} {streak.count===1?"día":"días"}</p></div>
+      <button onClick={()=>setScreen("home")} style={{...PBtn,maxWidth:300,width:"100%"}}>Volver al inicio</button>
     </div>
   );
-
   return null;
 }
-
-// ─── SHARED COMPONENTS ───────────────────────────────────────────
-function SLabel({t}){return <p style={{fontSize:10,color:"var(--tx3,#555)",letterSpacing:2,fontFamily:"Barlow Condensed",fontWeight:700,margin:"0 0 10px"}}>{t}</p>;}
-function SRow({label,children,T}){return(
-  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"13px 0",borderBottom:`1px solid ${T.bd}`,marginBottom:8}}>
-    <p style={{margin:0,fontFamily:"Barlow",fontSize:15,color:T.tx}}>{label}</p>
-    {children}
-  </div>
-);}
-function Toggle({v,on}){return(
-  <div onClick={()=>on(!v)} style={{width:46,height:25,background:v?A:"#333",borderRadius:99,position:"relative",cursor:"pointer",transition:"background 0.3s"}}>
-    <div style={{position:"absolute",top:2.5,left:v?21:2.5,width:20,height:20,background:"#fff",borderRadius:99,transition:"left 0.3s",boxShadow:"0 1px 4px rgba(0,0,0,0.3)"}}/>
-  </div>
-);}
-function SCrd({label,value,T,hl}){return(
-  <div style={{flex:1,background:hl?A+"15":T.card,border:`1px solid ${hl?A+"44":T.bd}`,borderRadius:12,padding:"9px 10px",textAlign:"center"}}>
-    <p style={{margin:0,fontSize:9,color:hl?A:T.tx3,letterSpacing:2,fontFamily:"Barlow Condensed",fontWeight:700}}>{label}</p>
-    <p style={{margin:"3px 0 0",fontFamily:"Barlow Condensed",fontSize:18,fontWeight:800,color:hl?A:T.tx}}>{value}</p>
-  </div>
-);}
-function bBtn(T){return{background:T.card,border:`1px solid ${T.bd}`,borderRadius:10,cursor:"pointer",color:T.tx,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",width:36,height:36,fontSize:16,fontWeight:700};}
-function fBtn(bg){return{width:"100%",padding:"15px",background:bg,border:"none",borderRadius:14,color:bg===A?"#0A0A0A":"#fff",fontFamily:"Barlow Condensed",fontWeight:900,fontSize:17,letterSpacing:1,cursor:"pointer"};}
-function sBtn(T){return{background:T.card2,border:"none",color:T.tx,width:30,height:30,borderRadius:8,cursor:"pointer",fontSize:17,fontFamily:"Barlow",flexShrink:0};}
-function nInput(T){return{flex:1,background:"none",border:"none",color:T.tx,fontSize:25,fontFamily:"Barlow Condensed",fontWeight:700,width:"100%",textAlign:"center",outline:"none"};}
-
 ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
 </script>
 </body>
