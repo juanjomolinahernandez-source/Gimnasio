@@ -18,7 +18,7 @@ input[type=number]{-moz-appearance:textfield;}
 ::-webkit-scrollbar{display:none;}
 button,input{font-family:'Inter',sans-serif;}
 @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.4;}}
-@keyframes slideUp{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
+@keyframes slideUp{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
 </style>
 </head>
 <body>
@@ -29,63 +29,96 @@ button,input{font-family:'Inter',sans-serif;}
 <script type="text/babel" data-presets="react">
 const { useState, useEffect, useRef, useCallback, useMemo } = React;
 
+// ── DESIGN ────────────────────────────────────────────────────
 const C = {
   bg:"#0C0C0E", surface:"#141416", card:"#1C1C1F", border:"#26262A",
   text:"#FFFFFF", textSec:"#8E8E9A", textMut:"#4A4A56",
   accent:"#C8FF00", accentDim:"#8FB300",
-  red:"#FF4D4D", green:"#00E676", blue:"#4D9FFF",
-  purple:"#A78BFA", orange:"#FF8C4D", yellow:"#FFD60A",
+  red:"#FF4D4D", green:"#00E676", blue:"#4D9FFF", purple:"#A78BFA", orange:"#FF8C4D",
+  yellow:"#FFD60A",
 };
-const GC = {Pecho:C.blue,Espalda:C.purple,Hombros:C.orange,Piernas:"#FF6B6B",Biceps:C.accent,Triceps:C.accentDim,Core:C.green};
-const SK = "sb_v8";
+const GC = { Pecho:C.blue,Espalda:C.purple,Hombros:C.orange,Piernas:"#FF6B6B",Biceps:C.accent,Triceps:C.accentDim,Core:C.green };
+const SK = "sb_v7";
 const MANCUERNAS = [5,7.5,10,12.5];
-const fmt = s => `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
-const vib = ms => { try{navigator.vibrate&&navigator.vibrate(ms);}catch(e){} };
-const todayDisp = () => new Date().toLocaleDateString("es-ES",{weekday:"short",day:"numeric",month:"short"});
-const dateKey = () => new Date().toLocaleDateString("es-ES",{day:"2-digit",month:"2-digit",year:"2-digit"});
+const fmt = s=>`${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
+const vib = ms=>{ try{navigator.vibrate&&navigator.vibrate(ms);}catch{} };
+const todayDisp = ()=>new Date().toLocaleDateString("es-ES",{weekday:"short",day:"numeric",month:"short"});
+const dateKey = ()=>new Date().toLocaleDateString("es-ES",{day:"2-digit",month:"2-digit",year:"2-digit"});
 
+// ── REP RANGES by exercise type ───────────────────────────────
+// repMin, repMax define the double-progression range
+// category: "compound_heavy" | "compound_secondary" | "isolation" | "accessory"
 const REP_RANGES = {
-  compound_heavy:     {min:5,max:8, label:"5-8 reps"},
-  compound_secondary: {min:8,max:12,label:"8-12 reps"},
-  isolation:          {min:10,max:15,label:"10-15 reps"},
-  accessory:          {min:12,max:20,label:"12-20 reps"},
+  compound_heavy:     { min:5, max:8,  label:"5-8 reps",  incWeight:2.5 },
+  compound_secondary: { min:8, max:12, label:"8-12 reps", incWeight:2.5 },
+  isolation:          { min:10,max:15, label:"10-15 reps",incWeight:2.5 },
+  accessory:          { min:12,max:20, label:"12-20 reps",incWeight:0   },
 };
 
+// ── COACH ENGINE ─────────────────────────────────────────────
+// Analyses completed sets and returns a coaching decision + message
 function analysePerformance(logs, ex) {
   if(!logs||logs.length===0) return null;
   const range = REP_RANGES[ex.category||"compound_secondary"];
   const reps = logs.map(l=>l.reps);
   const weight = logs[0].weight;
+  const allSets = ex.sets;
+  const avgReps = reps.reduce((a,b)=>a+b,0)/reps.length;
   const allAtMax = reps.every(r=>r>=range.max);
+  const allAtMin = reps.every(r=>r>=range.min);
   const anyBelow = reps.some(r=>r<range.min);
-  const completedAllSets = logs.length >= ex.sets;
-  let status, decision, message, nextWeight, nextReps;
+  const completedAllSets = logs.length >= allSets;
+
+  // Determine status
+  let status, decision, message, nextWeight, nextReps, emoji;
+
   if(anyBelow) {
-    status="below"; decision="BAJAR PESO";
-    const nW = ex.isMancuerna
-      ? (MANCUERNAS[Math.max(0,MANCUERNAS.indexOf(weight)-1)]||weight)
-      : Math.max(0,Math.round((weight-2.5)*10)/10);
-    nextWeight=nW; nextReps=range.min;
-    message = "Algunas series por debajo del mínimo ("+range.min+" reps). Próxima sesión baja a "+(nW>0?nW+"kg":"menos carga")+" y empieza desde "+range.min+" reps.";
+    // Below range — reduce weight
+    status = "below";
+    emoji = "🔴";
+    const newW = ex.isMancuerna
+      ? Math.max(MANCUERNAS[0], MANCUERNAS[MANCUERNAS.indexOf(weight)-1]||weight)
+      : Math.max(0, Math.round((weight - 2.5)*10)/10);
+    nextWeight = newW;
+    nextReps = range.min;
+    decision = "BAJAR PESO";
+    message = `Algunas series por debajo del mínimo (${range.min} reps). La próxima sesión baja a ${newW>0?newW+"kg":"menos carga"} y empieza desde ${range.min} reps.`;
   } else if(allAtMax && completedAllSets) {
-    status="max"; decision="SUBIR PESO";
-    let nW=weight;
-    if(ex.isMancuerna){const i=MANCUERNAS.indexOf(weight);nW=i!==-1&&i<MANCUERNAS.length-1?MANCUERNAS[i+1]:weight;}
-    else if(!ex.isCuerpo&&!ex.isGoma){nW=Math.round((weight+2.5)*10)/10;}
-    nextWeight=nW; nextReps=range.min;
+    // Hit ceiling — increase weight
+    status = "max";
+    emoji = "🟢";
+    let newW;
+    if(ex.isMancuerna) {
+      const idx = MANCUERNAS.indexOf(weight);
+      newW = idx!==-1 && idx<MANCUERNAS.length-1 ? MANCUERNAS[idx+1] : weight;
+    } else if(ex.isCuerpo||ex.isGoma||ex.category==="accessory") {
+      newW = weight; // body weight — just note achievement
+    } else {
+      newW = Math.round((weight+range.incWeight)*10)/10;
+    }
+    nextWeight = newW;
+    nextReps = range.min;
+    decision = ex.isCuerpo||ex.isGoma ? "¡RÉCORD!" : "SUBIR PESO";
     message = ex.isCuerpo||ex.isGoma
-      ? "Conseguiste "+range.max+" reps en todas las series. Intenta superarlo la próxima vez."
-      : "Completaste todas las series en "+range.max+" reps. Próxima sesión sube a "+nW+"kg desde "+range.min+" reps.";
+      ? `¡Conseguiste ${range.max} reps en todas las series! Marca personal. Intenta superar esto la próxima vez.`
+      : `¡Completaste todas las series en ${range.max} reps! La próxima sesión sube a ${newW}kg y empieza desde ${range.min} reps.`;
   } else {
-    status="progress"; decision="MANTENER PESO";
-    const minReps=Math.min(...reps);
-    nextWeight=weight; nextReps=Math.min(minReps+1,range.max);
-    message = "Buen trabajo. Mantén "+(weight>0?weight+"kg":"el mismo peso")+" e intenta llegar a "+nextReps+" reps en todas las series. Rango: "+range.label+".";
+    // Progressing within range
+    status = "progress";
+    emoji = "🟡";
+    // Target: add 1 rep to the weakest set next time
+    const minReps = Math.min(...reps);
+    const targetReps = Math.min(minReps+1, range.max);
+    nextWeight = weight;
+    nextReps = reps[reps.length-1]; // last set as reference
+    decision = "MANTENER PESO";
+    message = `Buen trabajo. Mantén ${weight>0?weight+"kg":"el mismo peso"} e intenta llegar a ${targetReps} reps en todas las series. Rango objetivo: ${range.label}.`;
   }
-  return {status,decision,message,nextWeight,nextReps,repsLog:reps,
-    emoji:status==="max"?"🟢":status==="below"?"🔴":"🟡"};
+
+  return { status, emoji, decision, message, nextWeight, nextReps, repsLog: reps };
 }
 
+// ── IMAGES ───────────────────────────────────────────────────
 const EX_IMG = {
   "Press Banca":"https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800&q=80",
   "Press Inclinado Barra":"https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?w=800&q=80",
@@ -112,145 +145,175 @@ const EX_IMG = {
   "Curl Martillo":"https://images.unsplash.com/photo-1581009137042-c552e485697a?w=800&q=80",
   "Curl Goma":"https://images.unsplash.com/photo-1604480132736-44c188fe4d20?w=800&q=80",
   "Fondos en Paralelas":"https://images.unsplash.com/photo-1598971457999-ca4ef48a9a71?w=800&q=80",
-  "Extension Triceps Goma":"https://images.unsplash.com/photo-1598971457999-ca4ef48a9a71?w=800&q=80",
-  "Press Frances Mancuerna":"https://images.unsplash.com/photo-1598971457999-ca4ef48a9a71?w=800&q=80",
+  "Extensión Tríceps Goma":"https://images.unsplash.com/photo-1598971457999-ca4ef48a9a71?w=800&q=80",
+  "Press Francés Mancuerna":"https://images.unsplash.com/photo-1598971457999-ca4ef48a9a71?w=800&q=80",
   "Plancha":"https://images.unsplash.com/photo-1616803689943-5601631c7fec?w=800&q=80",
   "Crunch Banca Inclinada":"https://images.unsplash.com/photo-1616803689943-5601631c7fec?w=800&q=80",
   "Russian Twist Mancuerna":"https://images.unsplash.com/photo-1616803689943-5601631c7fec?w=800&q=80",
 };
-const gImg = n => EX_IMG[n]||"https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800&q=80";
+const gImg = n => EX_IMG[n] || "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800&q=80";
 
+// ── LIBRARY — now includes category + repMin/repMax ───────────
 const LIB = [
-  {id:"lb01",name:"Press Banca",group:"Pecho",muscle:"Pecho · Triceps · Hombros",type:"barra",category:"compound_heavy",sets:4,reps:6,weight:60,rest:120,cues:["Escapulas retraidas","Barra al esternon","Pies firmes"]},
-  {id:"lb02",name:"Press Inclinado Barra",group:"Pecho",muscle:"Pecho alto · Triceps",type:"barra",category:"compound_secondary",sets:4,reps:8,weight:50,rest:120,cues:["Banco 30-45","Baja al pecho alto","Control en bajada"]},
-  {id:"lb03",name:"Press Banca Mancuernas",group:"Pecho",muscle:"Pecho · Triceps",type:"mancuerna",category:"compound_secondary",sets:4,reps:10,weight:10,rest:90,cues:["Rango completo","Junta arriba","Control bajada"],isMancuerna:true},
-  {id:"lb04",name:"Press Inclinado Mancuernas",group:"Pecho",muscle:"Pecho alto · Hombros",type:"mancuerna",category:"compound_secondary",sets:3,reps:10,weight:10,rest:90,cues:["Banco 30-45","Empuja y junta"],isMancuerna:true},
-  {id:"lb05",name:"Aperturas con Goma",group:"Pecho",muscle:"Pecho · Deltoides anterior",type:"goma",category:"accessory",sets:3,reps:15,weight:0,rest:60,cues:["Ancla al rack","Brazos semiestirados","Contrae al centro"],isGoma:true},
-  {id:"lb06",name:"Peso Muerto",group:"Espalda",muscle:"Espalda baja · Isquios · Gluteos",type:"barra",category:"compound_heavy",sets:4,reps:5,weight:80,rest:180,cues:["Espalda neutra","Barra pegada","Empuja el suelo"]},
-  {id:"lb07",name:"Remo con Barra",group:"Espalda",muscle:"Dorsal · Romboides · Biceps",type:"barra",category:"compound_secondary",sets:4,reps:8,weight:50,rest:120,cues:["Torso 45","Tira al ombligo","Aprieta espalda"]},
-  {id:"lb08",name:"Dominadas",group:"Espalda",muscle:"Dorsal · Biceps · Core",type:"corporal",category:"compound_secondary",sets:4,reps:6,weight:0,rest:120,cues:["Activa dorsal","Pecho a la barra","Baja con control"],isCuerpo:true},
-  {id:"lb09",name:"Remo Mancuerna",group:"Espalda",muscle:"Dorsal · Romboides · Biceps",type:"mancuerna",category:"compound_secondary",sets:4,reps:10,weight:12.5,rest:90,cues:["Rodilla y mano en banco","Tira a la cadera","Codo pegado"],isMancuerna:true},
-  {id:"lb10",name:"Remo con Goma",group:"Espalda",muscle:"Dorsal · Romboides",type:"goma",category:"accessory",sets:3,reps:15,weight:0,rest:60,cues:["Ancla bajo en rack","Tira con codos","Aprieta espalda"],isGoma:true},
-  {id:"lb11",name:"Press Militar",group:"Hombros",muscle:"Deltoides · Triceps · Core",type:"barra",category:"compound_heavy",sets:4,reps:6,weight:40,rest:120,cues:["Core apretado","Barra desde claviculas","Empuja arriba"]},
-  {id:"lb12",name:"Press Arnold",group:"Hombros",muscle:"Deltoides completo · Triceps",type:"mancuerna",category:"compound_secondary",sets:4,reps:10,weight:10,rest:90,cues:["Banco 90","Palmas hacia ti al inicio","Gira al subir"],isMancuerna:true},
-  {id:"lb13",name:"Elevaciones Laterales",group:"Hombros",muscle:"Deltoides lateral",type:"mancuerna",category:"isolation",sets:3,reps:12,weight:7.5,rest:60,cues:["Codos semiflexionados","Sube a altura hombro","Baja con control"],isMancuerna:true},
-  {id:"lb14",name:"Elevaciones Laterales Goma",group:"Hombros",muscle:"Deltoides lateral",type:"goma",category:"accessory",sets:3,reps:15,weight:0,rest:60,cues:["Pisa la goma","Tension desde abajo","Sube al hombro"],isGoma:true},
-  {id:"lb15",name:"Face Pull Goma",group:"Hombros",muscle:"Deltoides posterior · Romboides",type:"goma",category:"accessory",sets:3,reps:15,weight:0,rest:60,cues:["Ancla a altura cabeza","Tira hacia la cara","Codos altos"],isGoma:true},
-  {id:"lb16",name:"Sentadilla",group:"Piernas",muscle:"Cuadriceps · Gluteos · Core",type:"barra",category:"compound_heavy",sets:4,reps:6,weight:70,rest:180,cues:["Espalda neutra","Rodillas siguen pies","Baja hasta paralelo"]},
-  {id:"lb17",name:"Peso Muerto Rumano",group:"Piernas",muscle:"Isquiotibiales · Gluteos",type:"barra",category:"compound_secondary",sets:4,reps:10,weight:60,rest:120,cues:["Piernas casi rectas","Caderas atras","Barra roza muslos"]},
-  {id:"lb18",name:"Sentadilla Goblet",group:"Piernas",muscle:"Cuadriceps · Gluteos",type:"mancuerna",category:"compound_secondary",sets:3,reps:10,weight:12.5,rest:90,cues:["Mancuerna al pecho","Codos dentro rodillas","Pecho arriba"],isMancuerna:true},
-  {id:"lb19",name:"Zancadas con Mancuernas",group:"Piernas",muscle:"Cuadriceps · Gluteos · Isquios",type:"mancuerna",category:"compound_secondary",sets:3,reps:10,weight:10,rest:90,cues:["Rodilla trasera al suelo","Torso recto","Empuja con talon"],isMancuerna:true},
-  {id:"lb20",name:"Hip Thrust Barra",group:"Piernas",muscle:"Gluteos · Isquiotibiales",type:"barra",category:"compound_secondary",sets:4,reps:10,weight:60,rest:90,cues:["Banco a omoplatos","Empuja con talones","Aprieta gluteos"]},
-  {id:"lb21",name:"Sentadilla con Goma",group:"Piernas",muscle:"Cuadriceps · Gluteos",type:"goma",category:"accessory",sets:3,reps:15,weight:0,rest:60,cues:["Pisa la goma","Tension constante","Sentadilla completa"],isGoma:true},
-  {id:"lb22",name:"Curl Barra",group:"Biceps",muscle:"Biceps · Braquial",type:"barra",category:"isolation",sets:3,reps:10,weight:25,rest:90,cues:["Codos fijos","Sin balanceo","Aprieta arriba"]},
-  {id:"lb23",name:"Curl Mancuernas Alterno",group:"Biceps",muscle:"Biceps · Braquial",type:"mancuerna",category:"isolation",sets:3,reps:10,weight:10,rest:90,cues:["Un brazo a la vez","Supina al subir","Control bajada"],isMancuerna:true},
-  {id:"lb24",name:"Curl Martillo",group:"Biceps",muscle:"Braquial · Biceps",type:"mancuerna",category:"isolation",sets:3,reps:12,weight:10,rest:60,cues:["Agarre neutro","Codos fijos","Aprieta al tope"],isMancuerna:true},
-  {id:"lb25",name:"Curl Goma",group:"Biceps",muscle:"Biceps · Braquial anterior",type:"goma",category:"accessory",sets:3,reps:15,weight:0,rest:60,cues:["Pisa la goma","Tension constante","Codos fijos"],isGoma:true},
-  {id:"lb26",name:"Fondos en Paralelas",group:"Triceps",muscle:"Triceps · Pecho bajo",type:"corporal",category:"compound_secondary",sets:3,reps:8,weight:0,rest:90,cues:["Torso inclinado","Rango completo","Control bajada"],isCuerpo:true},
-  {id:"lb27",name:"Extension Triceps Goma",group:"Triceps",muscle:"Triceps cabeza larga",type:"goma",category:"accessory",sets:3,reps:15,weight:0,rest:60,cues:["Ancla arriba en rack","Codos fijos","Extiende completamente"],isGoma:true},
-  {id:"lb28",name:"Press Frances Mancuerna",group:"Triceps",muscle:"Triceps",type:"mancuerna",category:"isolation",sets:3,reps:12,weight:10,rest:60,cues:["Codos al techo","Baja detras cabeza","Extiende sin bloquear"],isMancuerna:true},
-  {id:"lb29",name:"Plancha",group:"Core",muscle:"Core · Estabilizadores",type:"corporal",category:"accessory",sets:3,reps:45,weight:0,rest:60,cues:["Cuerpo en linea","Gluteos apretados","Respira con control"],isCuerpo:true,isTime:true},
-  {id:"lb30",name:"Crunch Banca Inclinada",group:"Core",muscle:"Abdomen superior",type:"corporal",category:"accessory",sets:3,reps:15,weight:0,rest:60,cues:["Banco en declive","Sube hasta 45","Contrae abdomen"],isCuerpo:true},
-  {id:"lb31",name:"Russian Twist Mancuerna",group:"Core",muscle:"Oblicuos · Core",type:"mancuerna",category:"accessory",sets:3,reps:20,weight:7.5,rest:60,cues:["Pies elevados","Rota torso completo","Toca el suelo"],isMancuerna:true},
+  {id:"lb01",name:"Press Banca",group:"Pecho",muscle:"Pecho · Tríceps · Hombros",type:"barra",category:"compound_heavy",sets:4,reps:6,weight:60,rest:120,cues:["Escápulas retraídas","Barra al esternón","Pies firmes en el suelo"]},
+  {id:"lb02",name:"Press Inclinado Barra",group:"Pecho",muscle:"Pecho alto · Tríceps",type:"barra",category:"compound_secondary",sets:4,reps:8,weight:50,rest:120,cues:["Banco 30-45°","Baja al pecho alto","Control en la bajada"]},
+  {id:"lb03",name:"Press Banca Mancuernas",group:"Pecho",muscle:"Pecho · Tríceps",type:"mancuerna",category:"compound_secondary",sets:4,reps:10,weight:10,rest:90,cues:["Rango completo","Junta mancuernas arriba","Control en bajada"],isMancuerna:true},
+  {id:"lb04",name:"Press Inclinado Mancuernas",group:"Pecho",muscle:"Pecho alto · Hombros",type:"mancuerna",category:"compound_secondary",sets:3,reps:10,weight:10,rest:90,cues:["Banco 30-45°","Empuja y junta al tope"],isMancuerna:true},
+  {id:"lb05",name:"Aperturas con Goma",group:"Pecho",muscle:"Pecho · Deltoides anterior",type:"goma",category:"accessory",sets:3,reps:15,weight:0,rest:60,cues:["Ancla al rack","Brazos semiestirados","Contrae el pecho al centro"],isGoma:true},
+  {id:"lb06",name:"Peso Muerto",group:"Espalda",muscle:"Espalda baja · Isquios · Glúteos",type:"barra",category:"compound_heavy",sets:4,reps:5,weight:80,rest:180,cues:["Espalda neutra","Barra pegada al cuerpo","Empuja el suelo"]},
+  {id:"lb07",name:"Remo con Barra",group:"Espalda",muscle:"Dorsal · Romboides · Bíceps",type:"barra",category:"compound_secondary",sets:4,reps:8,weight:50,rest:120,cues:["Torso a 45°","Tira al ombligo","Aprieta espalda arriba"]},
+  {id:"lb08",name:"Dominadas",group:"Espalda",muscle:"Dorsal · Bíceps · Core",type:"corporal",category:"compound_secondary",sets:4,reps:6,weight:0,rest:120,cues:["Activa dorsal antes de subir","Pecho a la barra","Baja con control"],isCuerpo:true},
+  {id:"lb09",name:"Remo Mancuerna",group:"Espalda",muscle:"Dorsal · Romboides · Bíceps",type:"mancuerna",category:"compound_secondary",sets:4,reps:10,weight:12.5,rest:90,cues:["Rodilla y mano en banco","Tira a la cadera","Codo pegado al cuerpo"],isMancuerna:true},
+  {id:"lb10",name:"Remo con Goma",group:"Espalda",muscle:"Dorsal · Romboides",type:"goma",category:"accessory",sets:3,reps:15,weight:0,rest:60,cues:["Ancla bajo en rack","Tira con los codos","Aprieta espalda al final"],isGoma:true},
+  {id:"lb11",name:"Press Militar",group:"Hombros",muscle:"Deltoides · Tríceps · Core",type:"barra",category:"compound_heavy",sets:4,reps:6,weight:40,rest:120,cues:["Core apretado de pie","Barra desde clavículas","Empuja arriba y atrás"]},
+  {id:"lb12",name:"Press Arnold",group:"Hombros",muscle:"Deltoides completo · Tríceps",type:"mancuerna",category:"compound_secondary",sets:4,reps:10,weight:10,rest:90,cues:["Banco 90°","Palmas hacia ti al inicio","Gira las palmas al subir"],isMancuerna:true},
+  {id:"lb13",name:"Elevaciones Laterales",group:"Hombros",muscle:"Deltoides lateral",type:"mancuerna",category:"isolation",sets:3,reps:12,weight:7.5,rest:60,cues:["Codos ligeramente flexionados","Sube hasta altura del hombro","Baja con control 3s"],isMancuerna:true},
+  {id:"lb14",name:"Elevaciones Laterales Goma",group:"Hombros",muscle:"Deltoides lateral",type:"goma",category:"accessory",sets:3,reps:15,weight:0,rest:60,cues:["Pisa la goma","Tensión desde abajo","Sube hasta el hombro"],isGoma:true},
+  {id:"lb15",name:"Face Pull Goma",group:"Hombros",muscle:"Deltoides posterior · Romboides",type:"goma",category:"accessory",sets:3,reps:15,weight:0,rest:60,cues:["Ancla a altura de cabeza","Tira hacia la cara","Codos altos al final"],isGoma:true},
+  {id:"lb16",name:"Sentadilla",group:"Piernas",muscle:"Cuádriceps · Glúteos · Core",type:"barra",category:"compound_heavy",sets:4,reps:6,weight:70,rest:180,cues:["Espalda neutra","Rodillas siguen la dirección de los pies","Baja hasta paralelo"]},
+  {id:"lb17",name:"Peso Muerto Rumano",group:"Piernas",muscle:"Isquiotibiales · Glúteos",type:"barra",category:"compound_secondary",sets:4,reps:10,weight:60,rest:120,cues:["Piernas casi rectas","Empuja caderas atrás","Barra roza los muslos"]},
+  {id:"lb18",name:"Sentadilla Goblet",group:"Piernas",muscle:"Cuádriceps · Glúteos",type:"mancuerna",category:"compound_secondary",sets:3,reps:10,weight:12.5,rest:90,cues:["Mancuerna al pecho","Codos dentro de las rodillas","Pecho arriba"],isMancuerna:true},
+  {id:"lb19",name:"Zancadas con Mancuernas",group:"Piernas",muscle:"Cuádriceps · Glúteos · Isquios",type:"mancuerna",category:"compound_secondary",sets:3,reps:10,weight:10,rest:90,cues:["Rodilla trasera casi al suelo","Torso recto","Empuja con el talón"],isMancuerna:true},
+  {id:"lb20",name:"Hip Thrust Barra",group:"Piernas",muscle:"Glúteos · Isquiotibiales",type:"barra",category:"compound_secondary",sets:4,reps:10,weight:60,rest:90,cues:["Banco a altura de omóplatos","Empuja con los talones","Aprieta glúteos arriba"]},
+  {id:"lb21",name:"Sentadilla con Goma",group:"Piernas",muscle:"Cuádriceps · Glúteos",type:"goma",category:"accessory",sets:3,reps:15,weight:0,rest:60,cues:["Pisa la goma","Tensión constante","Sentadilla completa"],isGoma:true},
+  {id:"lb22",name:"Curl Barra",group:"Biceps",muscle:"Bíceps · Braquial",type:"barra",category:"isolation",sets:3,reps:10,weight:25,rest:90,cues:["Codos fijos al costado","Sin balanceo de torso","Aprieta el bíceps arriba"]},
+  {id:"lb23",name:"Curl Mancuernas Alterno",group:"Biceps",muscle:"Bíceps · Braquial",type:"mancuerna",category:"isolation",sets:3,reps:10,weight:10,rest:90,cues:["Un brazo a la vez","Supina la muñeca al subir","Control en la bajada"],isMancuerna:true},
+  {id:"lb24",name:"Curl Martillo",group:"Biceps",muscle:"Braquial · Bíceps",type:"mancuerna",category:"isolation",sets:3,reps:12,weight:10,rest:60,cues:["Agarre neutro","Codos fijos al costado","Aprieta al tope"],isMancuerna:true},
+  {id:"lb25",name:"Curl Goma",group:"Biceps",muscle:"Bíceps · Braquial anterior",type:"goma",category:"accessory",sets:3,reps:15,weight:0,rest:60,cues:["Pisa la goma","Tensión constante en todo el rango","Codos fijos"],isGoma:true},
+  {id:"lb26",name:"Fondos en Paralelas",group:"Triceps",muscle:"Tríceps · Pecho bajo",type:"corporal",category:"compound_secondary",sets:3,reps:8,weight:0,rest:90,cues:["Torso ligeramente inclinado","Rango completo","Control en la bajada"],isCuerpo:true},
+  {id:"lb27",name:"Extensión Tríceps Goma",group:"Triceps",muscle:"Tríceps (cabeza larga)",type:"goma",category:"accessory",sets:3,reps:15,weight:0,rest:60,cues:["Ancla arriba en rack","Codos fijos al costado","Extiende completamente"],isGoma:true},
+  {id:"lb28",name:"Press Francés Mancuerna",group:"Triceps",muscle:"Tríceps",type:"mancuerna",category:"isolation",sets:3,reps:12,weight:10,rest:60,cues:["Codos apuntando al techo","Baja detrás de la cabeza","Extiende sin bloquear el codo"],isMancuerna:true},
+  {id:"lb29",name:"Plancha",group:"Core",muscle:"Core · Estabilizadores",type:"corporal",category:"accessory",sets:3,reps:45,weight:0,rest:60,cues:["Cuerpo en línea recta","Glúteos y core apretados","Respira con control"],isCuerpo:true,isTime:true},
+  {id:"lb30",name:"Crunch Banca Inclinada",group:"Core",muscle:"Abdomen superior",type:"corporal",category:"accessory",sets:3,reps:15,weight:0,rest:60,cues:["Banco en declive","Sube hasta 45°","Contrae el abdomen al tope"],isCuerpo:true},
+  {id:"lb31",name:"Russian Twist Mancuerna",group:"Core",muscle:"Oblicuos · Core",type:"mancuerna",category:"accessory",sets:3,reps:20,weight:7.5,rest:60,cues:["Pies elevados","Rota el torso completo","Toca el suelo cada lado"],isMancuerna:true},
 ];
 
-const mkEx = (id, ov) => {
-  ov = ov || {};
-  const b = LIB.find(function(e){return e.id===id;});
-  const ex = Object.assign({}, b, ov, {libId:id, image:gImg(ov.name||b.name)});
-  const range = REP_RANGES[ex.category||"compound_secondary"];
-  ex.repMin = range.min; ex.repMax = range.max;
+const mkEx = (id,ov={}) => {
+  const b=LIB.find(e=>e.id===id);
+  const ex={...b,...ov,libId:id,image:gImg(ov.name||b.name)};
+  const range=REP_RANGES[ex.category||"compound_secondary"];
+  ex.repMin=range.min; ex.repMax=range.max;
   return ex;
 };
 
+// SESSIONS — Barra piernas → Barra empuje → Barra tirón → Mancuernas → Gomas/Corporal
 const DEF_SESSIONS = [
-  {id:"FA",name:"Full Body A",subtitle:"Fuerza base",icon:"A",exercises:[
-    mkEx("lb16"),mkEx("lb06"),mkEx("lb01"),mkEx("lb11"),mkEx("lb07"),
-    mkEx("lb12"),mkEx("lb23"),mkEx("lb27"),mkEx("lb29"),
-  ]},
-  {id:"FB",name:"Full Body B",subtitle:"Hipertrofia",icon:"B",exercises:[
-    mkEx("lb17"),mkEx("lb20"),mkEx("lb02"),mkEx("lb22"),
-    mkEx("lb09"),mkEx("lb04"),mkEx("lb13"),mkEx("lb28"),mkEx("lb31"),
-  ]},
-  {id:"FC",name:"Full Body C",subtitle:"Volumen + Core",icon:"C",exercises:[
-    mkEx("lb16",{name:"Sentadilla Pausa",reps:6,rest:150,cues:["Igual que sentadilla","Pausa 2s abajo","Explota arriba"]}),
-    mkEx("lb07",{name:"Remo Barra Prono",reps:8}),
-    mkEx("lb01",{name:"Press Banca Agarre Estrecho",reps:10,rest:90,cues:["Manos a anchura hombros","Codos pegados","Enfasis triceps"]}),
-    mkEx("lb20"),mkEx("lb08"),mkEx("lb18"),mkEx("lb03"),
-    mkEx("lb19"),mkEx("lb24"),mkEx("lb15"),mkEx("lb30"),
-  ]},
+  { id:"FA", name:"Full Body A", subtitle:"Fuerza base", icon:"A",
+    exercises:[
+      mkEx("lb16"), mkEx("lb06"), mkEx("lb01"), mkEx("lb11"), mkEx("lb07"),
+      mkEx("lb12"), mkEx("lb23"), mkEx("lb27"), mkEx("lb29"),
+    ]
+  },
+  { id:"FB", name:"Full Body B", subtitle:"Hipertrofia", icon:"B",
+    exercises:[
+      mkEx("lb17"), mkEx("lb20"), mkEx("lb02"), mkEx("lb22"),
+      mkEx("lb09"), mkEx("lb04"), mkEx("lb13"), mkEx("lb28"), mkEx("lb31"),
+    ]
+  },
+  { id:"FC", name:"Full Body C", subtitle:"Volumen + Core", icon:"C",
+    exercises:[
+      mkEx("lb16",{name:"Sentadilla Pausa",reps:6,rest:150,cues:["Igual que sentadilla","Pausa 2s abajo","Explota hacia arriba"]}),
+      mkEx("lb07",{name:"Remo Barra Prono",reps:8}),
+      mkEx("lb01",{name:"Press Banca Agarre Estrecho",reps:10,rest:90,cues:["Manos a anchura hombros","Codos pegados al cuerpo","Énfasis en tríceps"]}),
+      mkEx("lb20"), mkEx("lb08"), mkEx("lb18"), mkEx("lb03"),
+      mkEx("lb19"), mkEx("lb24"), mkEx("lb15"), mkEx("lb30"),
+    ]
+  },
 ];
 
-const BODY_METRICS = [
-  {id:"weight",label:"Peso",unit:"kg",icon:"⚖️",color:C.blue,desc:"En ayunas por la manana"},
-  {id:"waist",label:"Cintura",unit:"cm",icon:"📏",color:C.orange,desc:"A la altura del ombligo"},
-  {id:"chest",label:"Pecho",unit:"cm",icon:"💪",color:C.purple,desc:"Maximo perimetro del pecho"},
-  {id:"hip",label:"Cadera",unit:"cm",icon:"📐",color:"#FF6B6B",desc:"Maximo perimetro de cadera"},
-];
-
-function loadStore(){try{return JSON.parse(localStorage.getItem(SK)||"{}");}catch(e){return{};}}
+// ── STORAGE ───────────────────────────────────────────────────
+function loadStore(){ try{ return JSON.parse(localStorage.getItem(SK)||"{}"); }catch{return{};} }
 function useStore(){
   const [d,setD]=useState(loadStore);
-  const save=useCallback(function(fn){setD(function(p){const n=typeof fn==="function"?fn(p):fn;try{localStorage.setItem(SK,JSON.stringify(n));}catch(e){}return n;});},[]);
+  const save=useCallback(fn=>{ setD(p=>{const n=typeof fn==="function"?fn(p):fn; try{localStorage.setItem(SK,JSON.stringify(n));}catch{} return n;}); },[]);
   return [d,save];
 }
 
-const getTag = function(ex){
-  if(ex.isCuerpo) return {l:"Corporal",c:"#888"};
-  if(ex.isGoma) return {l:"Goma",c:C.accentDim};
-  if(ex.isMancuerna) return {l:"Mancuerna",c:C.blue};
-  return {l:"Barra",c:C.orange};
-};
+const getTag = ex => ex.isCuerpo?{l:"Corporal",c:"#888"}:ex.isGoma?{l:"Goma",c:C.accentDim}:ex.isMancuerna?{l:"Mancuerna",c:C.blue}:{l:"Barra",c:C.orange};
 
-function Chip(props){
-  return React.createElement("span",{style:{fontSize:10,color:props.color,background:props.color+"22",borderRadius:6,padding:"2px 8px",fontWeight:600,flexShrink:0,whiteSpace:"nowrap"}},props.label);
+function Chip({label,color}){
+  return <span style={{fontSize:10,color,background:color+"22",borderRadius:6,padding:"2px 8px",fontWeight:600,flexShrink:0,whiteSpace:"nowrap"}}>{label}</span>;
 }
 
-function MiniChart(props){
-  const history=props.history, unit=props.unit, color=props.color||C.accent;
-  if(!history||history.length<2) return React.createElement("p",{style:{textAlign:"center",padding:"24px",color:C.textMut,fontSize:13}},"Completa 2+ registros para ver la grafica");
-  const vals=history.map(function(h){return h.value!==undefined?h.value:(h.weight>0?h.weight:h.reps);});
-  const mn=Math.min.apply(null,vals),mx=Math.max.apply(null,vals),rng=mx-mn||1;
-  const W=300,H=100,P=22;
-  const pts=vals.map(function(v,i){return [P+(i/(vals.length-1))*(W-P*2),H-P-((v-mn)/rng)*(H-P*2)];});
-  const ln=pts.map(function(p,i){return (i===0?"M":"L")+p[0]+","+p[1];}).join(" ");
-  const ar=ln+" L"+pts[pts.length-1][0]+","+(H-P)+" L"+pts[0][0]+","+(H-P)+" Z";
-  const trend=vals.length>=2?vals[vals.length-1]-vals[0]:0;
-  return React.createElement("div",null,
-    React.createElement("svg",{width:"100%",viewBox:"0 0 "+W+" "+H},
-      React.createElement("defs",null,
-        React.createElement("linearGradient",{id:"cht",x1:"0",y1:"0",x2:"0",y2:"1"},
-          React.createElement("stop",{offset:"0%",stopColor:color,stopOpacity:"0.3"}),
-          React.createElement("stop",{offset:"100%",stopColor:color,stopOpacity:"0"}))),
-      React.createElement("path",{d:ar,fill:"url(#cht)"}),
-      React.createElement("path",{d:ln,fill:"none",stroke:color,strokeWidth:"2.5",strokeLinecap:"round",strokeLinejoin:"round"}),
-      pts.map(function(p,i){return React.createElement("g",{key:i},
-        React.createElement("circle",{cx:p[0],cy:p[1],r:"4",fill:color,stroke:C.bg,strokeWidth:"2"}),
-        React.createElement("text",{x:p[0],y:p[1]-9,textAnchor:"middle",fill:color,fontSize:"9",fontFamily:"Inter",fontWeight:"700"},vals[i]+(unit||"")),
-        React.createElement("text",{x:p[0],y:H-3,textAnchor:"middle",fill:C.textMut,fontSize:"8",fontFamily:"Inter"},history[i].date));})
-    ),
-    vals.length>=2&&React.createElement("p",{style:{textAlign:"center",fontSize:11,marginTop:4,color:trend===0?C.textMut:trend>0?C.red:C.green,fontWeight:600}},
-      trend===0?"Sin cambio":((trend>0?"+":"")+trend.toFixed(1)+(unit||"")+" desde el inicio"))
+// ── SET TRAFFIC LIGHT ─────────────────────────────────────────
+function SetLight({reps, ex}){
+  if(!reps||!ex) return null;
+  const range=REP_RANGES[ex.category||"compound_secondary"];
+  let color, label;
+  if(reps<range.min){ color=C.red; label="Por debajo"; }
+  else if(reps>=range.max){ color=C.accent; label="¡Techo!"; }
+  else { color=C.yellow; label="En rango"; }
+  return <span style={{fontSize:10,color,background:color+"22",borderRadius:6,padding:"2px 7px",fontWeight:700}}>{label}</span>;
+}
+
+// ── COACH CARD ────────────────────────────────────────────────
+function CoachCard({analysis, unit}){
+  if(!analysis) return null;
+  const statusColor = analysis.status==="max"?C.accent:analysis.status==="below"?C.red:C.yellow;
+  const bg = analysis.status==="max"?`${C.accent}12`:analysis.status==="below"?`${C.red}12`:`${C.yellow}10`;
+  return(
+    <div style={{background:bg,border:`1px solid ${statusColor}44`,borderRadius:18,padding:"16px 18px",animation:"slideUp 0.3s ease"}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+        <span style={{fontSize:24}}>{analysis.emoji}</span>
+        <div>
+          <p style={{fontSize:10,color:statusColor,fontWeight:700,letterSpacing:1.5}}>{analysis.decision}</p>
+          <p style={{fontSize:16,fontWeight:800,color:C.text,marginTop:1}}>Análisis del entrenador</p>
+        </div>
+      </div>
+      <p style={{fontSize:13,color:C.textSec,lineHeight:1.6,marginBottom:12}}>{analysis.message}</p>
+      {analysis.nextWeight!==undefined&&(
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          <div style={{background:C.surface,borderRadius:10,padding:"8px 12px",border:`1px solid ${C.border}`}}>
+            <p style={{fontSize:9,color:C.textMut,fontWeight:700,letterSpacing:1,marginBottom:3}}>PRÓXIMO PESO</p>
+            <p style={{fontSize:16,fontWeight:800,color:statusColor}}>{analysis.nextWeight>0?`${analysis.nextWeight}${unit}`:"Corporal"}</p>
+          </div>
+          <div style={{background:C.surface,borderRadius:10,padding:"8px 12px",border:`1px solid ${C.border}`}}>
+            <p style={{fontSize:9,color:C.textMut,fontWeight:700,letterSpacing:1,marginBottom:3}}>OBJETIVO REPS</p>
+            <p style={{fontSize:16,fontWeight:800,color:statusColor}}>{analysis.nextReps} reps</p>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
-const IBtn={background:C.surface,border:"1px solid "+C.border,borderRadius:10,cursor:"pointer",color:C.text,display:"flex",alignItems:"center",justifyContent:"center",width:36,height:36,fontSize:16,fontWeight:700};
+// ── MINI CHART ────────────────────────────────────────────────
+function MiniChart({history,unit}){
+  if(!history||history.length<2) return <p style={{textAlign:"center",padding:"28px",color:C.textMut,fontSize:13}}>Completa 2+ sesiones para ver la progresión</p>;
+  const vals=history.map(h=>h.weight>0?h.weight:h.reps);
+  const mn=Math.min(...vals),mx=Math.max(...vals),rng=mx-mn||1;
+  const W=300,H=100,P=22;
+  const pts=vals.map((v,i)=>[P+(i/(vals.length-1))*(W-P*2),H-P-((v-mn)/rng)*(H-P*2)]);
+  const ln=pts.map((p,i)=>`${i===0?"M":"L"}${p[0]},${p[1]}`).join(" ");
+  const ar=ln+` L${pts[pts.length-1][0]},${H-P} L${pts[0][0]},${H-P} Z`;
+  return(
+    <svg width="100%" viewBox={`0 0 ${W} ${H}`}>
+      <defs><linearGradient id="g1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={C.accent} stopOpacity="0.3"/><stop offset="100%" stopColor={C.accent} stopOpacity="0"/></linearGradient></defs>
+      <path d={ar} fill="url(#g1)"/><path d={ln} fill="none" stroke={C.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      {pts.map((p,i)=>(<g key={i}><circle cx={p[0]} cy={p[1]} r="4" fill={C.accent} stroke={C.bg} strokeWidth="2"/>
+        <text x={p[0]} y={p[1]-9} textAnchor="middle" fill={C.accent} fontSize="9" fontFamily="Inter" fontWeight="700">{vals[i]}{unit}</text>
+        <text x={p[0]} y={H-3} textAnchor="middle" fill={C.textMut} fontSize="8" fontFamily="Inter">{history[i].date}</text></g>))}
+    </svg>
+  );
+}
+
+// Shared styles
+const IBtn={background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,cursor:"pointer",color:C.text,display:"flex",alignItems:"center",justifyContent:"center",width:36,height:36,fontSize:16,fontWeight:700};
 const PBtn={width:"100%",padding:"15px",background:C.accent,border:"none",borderRadius:14,color:"#000",fontWeight:700,fontSize:15,cursor:"pointer"};
-const GBtn={width:"100%",padding:"14px",background:"transparent",border:"1px solid "+C.border,borderRadius:14,color:C.textSec,fontWeight:600,fontSize:14,cursor:"pointer"};
+const GBtn={width:"100%",padding:"14px",background:"transparent",border:`1px solid ${C.border}`,borderRadius:14,color:C.textSec,fontWeight:600,fontSize:14,cursor:"pointer"};
 const SBtn={background:C.card,border:"none",color:C.text,width:32,height:32,borderRadius:9,cursor:"pointer",fontSize:18,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0};
 const NIn={flex:1,background:"none",border:"none",color:C.text,fontSize:28,fontWeight:700,width:"100%",textAlign:"center",outline:"none"};
 const SecT={fontSize:11,color:C.textMut,fontWeight:700,letterSpacing:1.5,marginBottom:12};
 
+// ── MAIN APP ─────────────────────────────────────────────────
 function App(){
   const [store,saveStore]=useStore();
-  const [sessions,setSessions]=useState(function(){return store.sessions||DEF_SESSIONS;});
-  const [logData,setLogData]=useState(function(){return store.logData||{};});
-  const [streak,setStreak]=useState(function(){return store.streak||{count:0,lastDate:null};});
-  const [savedWS,setSavedWS]=useState(function(){return store.savedWS||null;});
-  const [sesDates,setSesDates]=useState(function(){return store.sesDates||{};});
-  const [unit,setUnit]=useState(function(){return store.unit||"kg";});
-  const [bodyMetrics,setBodyMetrics]=useState(function(){return store.bodyMetrics||{};});
-  const [activeTab,setActiveTab]=useState("train");
+  const [sessions,setSessions]=useState(()=>store.sessions||DEF_SESSIONS);
+  const [logData,setLogData]=useState(()=>store.logData||{});
+  const [streak,setStreak]=useState(()=>store.streak||{count:0,lastDate:null});
+  const [savedWS,setSavedWS]=useState(()=>store.savedWS||null);
+  const [sesDates,setSesDates]=useState(()=>store.sesDates||{});
+  const [unit,setUnit]=useState(()=>store.unit||"kg");
   const [screen,setScreen]=useState("home");
   const [activeS,setActiveS]=useState(null);
   const [exIdx,setExIdx]=useState(0);
@@ -269,477 +332,395 @@ function App(){
   const [swapModal,setSwapModal]=useState(null);
   const [libQ,setLibQ]=useState("");
   const [histModal,setHistModal]=useState(null);
-  const [settingsOpen,setSettingsOpen]=useState(false);
+  const [settings,setSettings]=useState(false);
   const [reorderSi,setReorderSi]=useState(null);
   const [showExList,setShowExList]=useState(false);
-  const [showAddBody,setShowAddBody]=useState(false);
-  const [addBodyVals,setAddBodyVals]=useState({weight:"",waist:"",chest:"",hip:""});
-  const [activeBodyMetric,setActiveBodyMetric]=useState("weight");
   const mRef=useRef(); const rRef=useRef(); const thumbRef=useRef();
 
-  useEffect(function(){saveStore(function(p){return Object.assign({},p,{sessions,logData,streak,savedWS,sesDates,unit,bodyMetrics});});},[sessions,logData,streak,savedWS,sesDates,unit,bodyMetrics]);
-  useEffect(function(){
-    if(timerOn) mRef.current=setInterval(function(){setTotalSecs(function(s){return s+1;});},1000);
-    else clearInterval(mRef.current);
-    return function(){clearInterval(mRef.current);};
-  },[timerOn]);
-  useEffect(function(){
-    if(restOn){rRef.current=setInterval(function(){setRestSecs(function(s){if(s<=1){clearInterval(rRef.current);setRestOn(false);vib(500);return 0;}return s-1;});},1000);}
+  useEffect(()=>{ saveStore(p=>({...p,sessions,logData,streak,savedWS,sesDates,unit})); },[sessions,logData,streak,savedWS,sesDates,unit]);
+  useEffect(()=>{ if(timerOn) mRef.current=setInterval(()=>setTotalSecs(s=>s+1),1000); else clearInterval(mRef.current); return()=>clearInterval(mRef.current); },[timerOn]);
+  useEffect(()=>{
+    if(restOn){ rRef.current=setInterval(()=>setRestSecs(s=>{ if(s<=1){clearInterval(rRef.current);setRestOn(false);vib(500);return 0;} return s-1; }),1000); }
     else clearInterval(rRef.current);
-    return function(){clearInterval(rRef.current);};
+    return()=>clearInterval(rRef.current);
   },[restOn]);
-  useEffect(function(){
+  useEffect(()=>{
     if(thumbRef.current&&screen==="exercise"){
-      const el=thumbRef.current.querySelector("[data-idx='"+exIdx+"']");
+      const el=thumbRef.current.querySelector(`[data-idx="${exIdx}"]`);
       if(el) el.scrollIntoView({behavior:"smooth",inline:"center",block:"nearest"});
     }
   },[exIdx,screen]);
 
-  const suggested=useMemo(function(){
+  const suggested=useMemo(()=>{
     let oldest=null,oldestI=0;
-    sessions.forEach(function(s,i){
-      const d=sesDates[s.id];
-      if(!d){if(oldest!==null)return;oldest=null;oldestI=i;return;}
-      if(oldest===null||new Date(d.raw)<new Date(oldest)){oldest=d.raw;oldestI=i;}
-    });
+    sessions.forEach((s,i)=>{ const d=sesDates[s.id]; if(!d){if(oldest!==null)return;oldest=null;oldestI=i;return;} if(oldest===null||new Date(d.raw)<new Date(oldest)){oldest=d.raw;oldestI=i;} });
     return sessions[oldestI];
   },[sessions,sesDates]);
 
-  function getLog(sId,n){return logData[sId+"__"+n]||null;}
-  function getPlan(sId,ex){
+  const getLog=(sId,n)=>logData[`${sId}__${n}`]||null;
+  const getPlan=(sId,ex)=>{
     const d=getLog(sId,ex.name);
-    if(d) return {weight:d.nextWeight!==undefined?d.nextWeight:d.lastWeight,reps:d.nextReps||ex.repMin||ex.reps};
+    if(d) return {weight:d.nextWeight!==undefined?d.nextWeight:d.lastWeight, reps:d.nextReps||ex.repMin||ex.reps};
     return {weight:ex.weight||0,reps:ex.repMin||ex.reps||8};
-  }
+  };
   const currentSetLogs=allSetLogs[exIdx]||[];
 
-  function startSession(s){
-    if(savedWS&&savedWS.sId===s.id){setActiveS(s);setResumeModal(true);return;}
-    setSavedWS(null);initSes(s,null);
-  }
-  function initSes(s,res){
+  function startSession(s){ if(savedWS&&savedWS.sId===s.id){setActiveS(s);setResumeModal(true);return;} setSavedWS(null);initSes(s); }
+  function initSes(s,res=null){
     setActiveS(s);setShowCues(false);setRestOn(false);setNoteI("");setShowExList(false);
-    if(res){
-      setExIdx(res.exIdx);setSetIdx(res.setIdx);setTotalSecs(res.totalSecs||0);
-      setAllSetLogs(res.allSetLogs||{});setWeightI(res.weightI||"");setRepsI(res.repsI||"");
-    } else {
-      setExIdx(0);setSetIdx(0);setTotalSecs(0);setAllSetLogs({});
-      const p=getPlan(s.id,s.exercises[0]);setWeightI(String(p.weight));setRepsI(String(p.reps));
-    }
+    if(res){ setExIdx(res.exIdx);setSetIdx(res.setIdx);setTotalSecs(res.totalSecs||0);setAllSetLogs(res.allSetLogs||{});setWeightI(res.weightI||"");setRepsI(res.repsI||""); }
+    else { setExIdx(0);setSetIdx(0);setTotalSecs(0);setAllSetLogs({}); const p=getPlan(s.id,s.exercises[0]);setWeightI(String(p.weight));setRepsI(String(p.reps)); }
     setTimerOn(true);setScreen("exercise");
   }
   function jumpToEx(i){
-    if(!activeS) return;
+    if(!activeS)return;
     setExIdx(i);setSetIdx(0);setShowCues(false);setNoteI("");setShowExList(false);setRestOn(false);setRestSecs(0);
     const plan=getPlan(activeS.id,activeS.exercises[i]);
     setWeightI(String(plan.weight));setRepsI(String(plan.reps));
   }
-  useEffect(function(){
-    if(screen==="exercise"&&activeS) setSavedWS({sId:activeS.id,exIdx:exIdx,setIdx:setIdx,totalSecs:totalSecs,allSetLogs:allSetLogs,weightI:weightI,repsI:repsI});
-  },[screen,exIdx,setIdx,allSetLogs,weightI,repsI]);
+  useEffect(()=>{ if(screen==="exercise"&&activeS) setSavedWS({sId:activeS.id,exIdx,setIdx,totalSecs,allSetLogs,weightI,repsI}); },[screen,exIdx,setIdx,allSetLogs,weightI,repsI]);
 
   function logSet(){
     const w=parseFloat(weightI)||0,r=parseInt(repsI)||0;
     const ex=activeS.exercises[exIdx];
     const prev=allSetLogs[exIdx]||[];
-    const upd=Object.assign({},allSetLogs);
-    upd[exIdx]=[].concat(prev,[{weight:w,reps:r,note:noteI.trim()}]);
+    const upd={...allSetLogs,[exIdx]:[...prev,{weight:w,reps:r,note:noteI.trim()}]};
     setAllSetLogs(upd);setNoteI("");setRestSecs(ex.rest||90);setRestOn(true);
-    if(setIdx+1<ex.sets) setSetIdx(function(s){return s+1;});
-    else setProgModal({ex:ex,sId:activeS.id,logs:upd[exIdx]});
+    if(setIdx+1<ex.sets) setSetIdx(s=>s+1);
+    else setProgModal({ex,sId:activeS.id,logs:upd[exIdx]});
+  }
+
+  function saveProgression(analysis, ex, sId){
+    const key=`${sId}__${ex.name}`,prev=logData[key]||{};
+    const lastW=analysis.repsLog[analysis.repsLog.length-1]!==undefined?parseFloat(weightI)||0:0;
+    const logs=progModal.logs;
+    setLogData(ld=>({...ld,[key]:{
+      lastWeight:logs[logs.length-1].weight,
+      lastReps:logs[logs.length-1].reps,
+      nextWeight:analysis.nextWeight,
+      nextReps:analysis.nextReps,
+      lastAnalysis:analysis.decision,
+      history:[...(prev.history||[]),{weight:logs[logs.length-1].weight,reps:logs[logs.length-1].reps,date:dateKey(),note:logs[logs.length-1].note||"",status:analysis.status}]
+    }}));
   }
 
   function handleProg(){
-    const ex=progModal.ex,sId=progModal.sId,logs=progModal.logs;
+    const{ex,sId,logs}=progModal;
     const analysis=analysePerformance(logs,ex);
-    const key=sId+"__"+ex.name;
-    const prev=logData[key]||{};
-    const lastLog=logs[logs.length-1];
-    setLogData(function(ld){
-      const n=Object.assign({},ld);
-      n[key]={lastWeight:lastLog.weight,lastReps:lastLog.reps,
-        nextWeight:analysis.nextWeight,nextReps:analysis.nextReps,
-        lastAnalysis:analysis.decision,
-        history:(prev.history||[]).concat([{weight:lastLog.weight,reps:lastLog.reps,date:dateKey(),note:lastLog.note||"",status:analysis.status}])};
-      return n;
-    });
+    saveProgression(analysis,ex,sId);
     setProgModal(null);setRestOn(false);
     const next=exIdx+1;
-    if(next<activeS.exercises.length){jumpToEx(next);}
-    else{
+    if(next<activeS.exercises.length){ jumpToEx(next); }
+    else {
       setTimerOn(false);setSavedWS(null);
-      setSesDates(function(sd){const n=Object.assign({},sd);n[activeS.id]={display:todayDisp(),raw:new Date().toISOString()};return n;});
+      setSesDates(sd=>({...sd,[activeS.id]:{display:todayDisp(),raw:new Date().toISOString()}}));
       const today=new Date().toDateString();
-      setStreak(function(p){const y=new Date(Date.now()-86400000).toDateString();if(p.lastDate===today)return p;return{count:p.lastDate===y?p.count+1:1,lastDate:today};});
+      setStreak(p=>{const y=new Date(Date.now()-86400000).toDateString();if(p.lastDate===today)return p;return{count:p.lastDate===y?p.count+1:1,lastDate:today};});
       setScreen("done");
     }
   }
 
-  function swapEx(si,ei,newEx){
-    setSessions(function(p){return p.map(function(s,i){if(i!==si)return s;return Object.assign({},s,{exercises:s.exercises.map(function(e,j){if(j!==ei)return e;return Object.assign({},newEx,{libId:newEx.id,sets:e.sets,image:gImg(newEx.name),repMin:REP_RANGES[newEx.category||"compound_secondary"].min,repMax:REP_RANGES[newEx.category||"compound_secondary"].max});});});});});
-    setSwapModal(null);setLibQ("");
-  }
-  function moveEx(si,from,dir){
-    setSessions(function(p){return p.map(function(s,i){
-      if(i!==si)return s;
-      const a=s.exercises.slice();const to=from+dir;
-      if(to<0||to>=a.length)return s;
-      const tmp=a[from];a[from]=a[to];a[to]=tmp;
-      return Object.assign({},s,{exercises:a});
-    });});
-  }
+  function swapEx(si,ei,newEx){ setSessions(p=>p.map((s,i)=>i!==si?s:{...s,exercises:s.exercises.map((e,j)=>j!==ei?e:{...newEx,libId:newEx.id,sets:e.sets,image:gImg(newEx.name),repMin:REP_RANGES[newEx.category||"compound_secondary"].min,repMax:REP_RANGES[newEx.category||"compound_secondary"].max})})); setSwapModal(null);setLibQ(""); }
+  function moveEx(si,from,dir){ setSessions(p=>p.map((s,i)=>{ if(i!==si)return s; const a=[...s.exercises],to=from+dir; if(to<0||to>=a.length)return s; [a[from],a[to]]=[a[to],a[from]]; return{...s,exercises:a}; })); }
 
-  function saveBodyEntry(){
-    const today=dateKey();
-    const n=Object.assign({},bodyMetrics);
-    let saved=false;
-    BODY_METRICS.forEach(function(m){
-      const v=parseFloat(addBodyVals[m.id]);
-      if(v>0){
-        const existing=n[m.id]||[];
-        const filtered=existing.filter(function(e){return e.date!==today;});
-        n[m.id]=filtered.concat([{value:v,date:today,raw:new Date().toISOString()}]).sort(function(a,b){return new Date(a.raw)-new Date(b.raw);});
-        saved=true;
-      }
-    });
-    if(saved){setBodyMetrics(n);setShowAddBody(false);setAddBodyVals({weight:"",waist:"",chest:"",hip:""});}
-  }
-
-  // ── RESUME ────────────────────────────────────────────────────
+  // ── RESUME MODAL ──────────────────────────────────────────────
   if(resumeModal&&activeS){
     const ws=savedWS;
-    const completed=Object.keys(ws.allSetLogs||{}).filter(function(k){return ws.allSetLogs[k]&&ws.allSetLogs[k].length>0;});
-    return React.createElement("div",{style:{minHeight:"100vh",background:C.bg,paddingBottom:40}},
-      React.createElement("div",{style:{padding:"56px 22px 0",display:"flex",alignItems:"center",gap:14,marginBottom:22}},
-        React.createElement("button",{onClick:function(){setResumeModal(false);setActiveS(null);},style:IBtn},"←"),
-        React.createElement("div",null,
-          React.createElement("p",{style:{fontSize:20,fontWeight:800}},"Sesion en pausa"),
-          React.createElement("p",{style:{fontSize:13,color:C.textSec,marginTop:2}},activeS.name))),
-      React.createElement("div",{style:{padding:"0 22px"}},
-        React.createElement("div",{style:{background:C.surface,border:"1px solid "+C.border,borderRadius:18,overflow:"hidden",marginBottom:18}},
-          React.createElement("div",{style:{padding:"16px",borderBottom:"1px solid "+C.border}},
-            React.createElement("p",{style:Object.assign({},SecT,{marginBottom:10})},"RESUMEN DE LO HECHO"),
-            React.createElement("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}},
-              [{l:"EJERCICIOS",v:completed.length},{l:"PROGRESO",v:(ws.exIdx||0)+1+"/"+activeS.exercises.length},{l:"TIEMPO",v:fmt(ws.totalSecs||0)}].map(function(x){
-                return React.createElement("div",{key:x.l,style:{background:C.card,borderRadius:12,padding:"12px 8px",textAlign:"center"}},
-                  React.createElement("p",{style:{fontSize:20,fontWeight:800,color:C.accent}},x.v),
-                  React.createElement("p",{style:{fontSize:9,color:C.textMut,fontWeight:700,letterSpacing:1,marginTop:3}},x.l));}))),
-          React.createElement("div",{style:{maxHeight:240,overflowY:"auto"}},
-            activeS.exercises.map(function(ex,i){
-              const logs=(ws.allSetLogs||{})[i]||[];
-              const done=logs.length>=ex.sets;
-              const isActive=i===(ws.exIdx||0);
-              return React.createElement("div",{key:i,style:{display:"flex",alignItems:"center",gap:12,padding:"11px 16px",borderBottom:"1px solid "+C.border,opacity:i>(ws.exIdx||0)&&!done?0.35:1}},
-                React.createElement("div",{style:{width:36,height:36,borderRadius:9,overflow:"hidden",flexShrink:0}},
-                  React.createElement("img",{src:ex.image||gImg(ex.name),alt:"",style:{width:"100%",height:"100%",objectFit:"cover"}})),
-                React.createElement("div",{style:{flex:1,minWidth:0}},
-                  React.createElement("p",{style:{fontSize:13,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},ex.name),
-                  logs.length>0&&React.createElement("p",{style:{fontSize:11,color:C.textSec,marginTop:1}},logs.map(function(l){return l.weight>0?l.weight+"kg x"+l.reps:l.reps+"r";}).join(" · "))),
-                React.createElement("div",{style:{flexShrink:0}},
-                  done&&React.createElement("div",{style:{width:22,height:22,borderRadius:99,background:C.accent,display:"flex",alignItems:"center",justifyContent:"center"}},React.createElement("span",{style:{fontSize:11,color:"#000",fontWeight:900}},"✓")),
-                  isActive&&!done&&React.createElement("div",{style:{width:8,height:8,borderRadius:99,background:C.accent}})));}))),
-        React.createElement("button",{onClick:function(){setResumeModal(false);initSes(activeS,ws);},style:Object.assign({},PBtn,{marginBottom:10})},"Continuar donde lo deje"),
-        React.createElement("button",{onClick:function(){setResumeModal(false);setSavedWS(null);initSes(activeS,null);},style:GBtn},"Empezar desde el principio")));
+    const completed=Object.entries(ws.allSetLogs||{}).filter(([,l])=>l&&l.length>0);
+    return(
+      <div style={{minHeight:"100vh",background:C.bg,paddingBottom:40}}>
+        <div style={{padding:"56px 22px 0",display:"flex",alignItems:"center",gap:14,marginBottom:22}}>
+          <button onClick={()=>{setResumeModal(false);setActiveS(null);}} style={IBtn}>←</button>
+          <div><p style={{fontSize:20,fontWeight:800}}>Sesión en pausa</p><p style={{fontSize:13,color:C.textSec,marginTop:2}}>{activeS.name}</p></div>
+        </div>
+        <div style={{padding:"0 22px"}}>
+          <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:18,overflow:"hidden",marginBottom:18}}>
+            <div style={{padding:"16px",borderBottom:`1px solid ${C.border}`}}>
+              <p style={SecT}>RESUMEN DE LO HECHO</p>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+                {[{l:"EJERCICIOS",v:completed.length},{l:"PROGRESO",v:`${(ws.exIdx||0)+1}/${activeS.exercises.length}`},{l:"TIEMPO",v:fmt(ws.totalSecs||0)}].map(x=>(
+                  <div key={x.l} style={{background:C.card,borderRadius:12,padding:"12px 8px",textAlign:"center"}}>
+                    <p style={{fontSize:20,fontWeight:800,color:C.accent}}>{x.v}</p>
+                    <p style={{fontSize:9,color:C.textMut,fontWeight:700,letterSpacing:1,marginTop:3}}>{x.l}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{maxHeight:260,overflowY:"auto"}}>
+              {activeS.exercises.map((ex,i)=>{
+                const logs=(ws.allSetLogs||{})[i]||[];
+                const done=logs.length>=ex.sets;
+                const isActive=i===(ws.exIdx||0);
+                return(
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 16px",borderBottom:`1px solid ${C.border}`,opacity:i>(ws.exIdx||0)&&!done?0.35:1}}>
+                    <div style={{width:36,height:36,borderRadius:9,overflow:"hidden",flexShrink:0}}><img src={ex.image||gImg(ex.name)} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/></div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <p style={{fontSize:13,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{ex.name}</p>
+                      {logs.length>0&&<p style={{fontSize:11,color:C.textSec,marginTop:1}}>{logs.map(l=>l.weight>0?`${l.weight}${unit}×${l.reps}`:l.reps+"r").join(" · ")}</p>}
+                    </div>
+                    <div style={{flexShrink:0}}>
+                      {done&&<div style={{width:22,height:22,borderRadius:99,background:C.accent,display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:11,color:"#000",fontWeight:900}}>✓</span></div>}
+                      {isActive&&!done&&<div style={{width:8,height:8,borderRadius:99,background:C.accent,animation:"pulse 1.5s infinite"}}/>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          <button onClick={()=>{setResumeModal(false);initSes(activeS,ws);}} style={{...PBtn,marginBottom:10}}>Continuar donde lo dejé</button>
+          <button onClick={()=>{setResumeModal(false);setSavedWS(null);initSes(activeS);}} style={GBtn}>Empezar desde el principio</button>
+        </div>
+      </div>
+    );
   }
 
   // ── SWAP LIBRARY ──────────────────────────────────────────────
   if(swapModal){
-    const filtered=LIB.filter(function(e){return e.group===swapModal.group&&(!libQ||e.name.toLowerCase().indexOf(libQ.toLowerCase())!==-1);});
-    return React.createElement("div",{style:{minHeight:"100vh",background:C.bg}},
-      React.createElement("div",{style:{padding:"56px 20px 14px",position:"sticky",top:0,background:C.bg,zIndex:10,borderBottom:"1px solid "+C.border}},
-        React.createElement("div",{style:{display:"flex",alignItems:"center",gap:14,marginBottom:14}},
-          React.createElement("button",{onClick:function(){setSwapModal(null);setLibQ("");},style:IBtn},"←"),
-          React.createElement("div",null,
-            React.createElement("p",{style:{fontSize:18,fontWeight:800}},"Cambiar ejercicio"),
-            React.createElement("p",{style:{fontSize:12,color:GC[swapModal.group]||C.accent,fontWeight:600,marginTop:2}},swapModal.group+" · mismo grupo muscular"))),
-        React.createElement("input",{value:libQ,onChange:function(e){setLibQ(e.target.value);},placeholder:"Buscar...",style:{width:"100%",background:C.surface,border:"1px solid "+C.border,borderRadius:12,padding:"11px 16px",color:C.text,fontSize:14,outline:"none"}})),
-      React.createElement("div",{style:{padding:"12px 20px 60px"}},
-        filtered.map(function(ex){
-          const tag=getTag(ex);const range=REP_RANGES[ex.category||"compound_secondary"];
-          return React.createElement("div",{key:ex.id,onClick:function(){swapEx(swapModal.si,swapModal.ei,ex);},style:{background:C.surface,border:"1px solid "+C.border,borderRadius:16,marginBottom:10,overflow:"hidden",display:"flex",cursor:"pointer",height:80}},
-            React.createElement("div",{style:{width:96,flexShrink:0,overflow:"hidden"}},
-              React.createElement("img",{src:gImg(ex.name),alt:"",style:{width:"100%",height:"100%",objectFit:"cover"}})),
-            React.createElement("div",{style:{padding:"11px 14px",flex:1,minWidth:0,display:"flex",flexDirection:"column",justifyContent:"center"}},
-              React.createElement("p",{style:{fontSize:15,fontWeight:700}},ex.name),
-              React.createElement("p",{style:{fontSize:11,color:C.textSec,margin:"2px 0 5px"}},ex.muscle),
-              React.createElement("div",{style:{display:"flex",gap:5}},
-                React.createElement(Chip,{label:tag.l,color:tag.c}),
-                React.createElement(Chip,{label:range.label,color:C.textMut}))));
-        })));
+    const filtered=LIB.filter(e=>e.group===swapModal.group&&(!libQ||e.name.toLowerCase().includes(libQ.toLowerCase())));
+    return(
+      <div style={{minHeight:"100vh",background:C.bg}}>
+        <div style={{padding:"56px 20px 14px",position:"sticky",top:0,background:C.bg,zIndex:10,borderBottom:`1px solid ${C.border}`}}>
+          <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:14}}>
+            <button onClick={()=>{setSwapModal(null);setLibQ("");}} style={IBtn}>←</button>
+            <div><p style={{fontSize:18,fontWeight:800}}>Cambiar ejercicio</p><p style={{fontSize:12,color:GC[swapModal.group]||C.accent,fontWeight:600,marginTop:2}}>{swapModal.group} · mismo grupo muscular</p></div>
+          </div>
+          <input value={libQ} onChange={e=>setLibQ(e.target.value)} placeholder="Buscar..." style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"11px 16px",color:C.text,fontSize:14,outline:"none"}}/>
+        </div>
+        <div style={{padding:"12px 20px 60px"}}>
+          {filtered.map(ex=>{
+            const tag=getTag(ex);const range=REP_RANGES[ex.category||"compound_secondary"];
+            return(
+              <div key={ex.id} onClick={()=>swapEx(swapModal.si,swapModal.ei,ex)} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:16,marginBottom:10,overflow:"hidden",display:"flex",cursor:"pointer",height:84}}>
+                <div style={{width:96,flexShrink:0,overflow:"hidden"}}><img src={gImg(ex.name)} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/></div>
+                <div style={{padding:"11px 14px",flex:1,minWidth:0,display:"flex",flexDirection:"column",justifyContent:"center"}}>
+                  <p style={{fontSize:15,fontWeight:700}}>{ex.name}</p>
+                  <p style={{fontSize:11,color:C.textSec,margin:"2px 0 5px"}}>{ex.muscle}</p>
+                  <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                    <Chip label={tag.l} color={tag.c}/>
+                    <Chip label={range.label} color={C.textMut}/>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
   }
 
   // ── REORDER ────────────────────────────────────────────────────
   if(reorderSi!==null){
     const s=sessions[reorderSi];
-    return React.createElement("div",{style:{minHeight:"100vh",background:C.bg}},
-      React.createElement("div",{style:{padding:"56px 20px 14px",position:"sticky",top:0,background:C.bg,zIndex:10,borderBottom:"1px solid "+C.border,display:"flex",alignItems:"center",gap:14}},
-        React.createElement("button",{onClick:function(){setReorderSi(null);},style:IBtn},"←"),
-        React.createElement("div",null,
-          React.createElement("p",{style:{fontSize:18,fontWeight:800}},"Reordenar ejercicios"),
-          React.createElement("p",{style:{fontSize:12,color:C.textSec,marginTop:2}},s.name))),
-      React.createElement("div",{style:{padding:"12px 20px"}},
-        React.createElement("div",{style:{background:C.surface,border:"1px solid "+C.accent+"33",borderRadius:14,padding:"12px 16px",marginBottom:14,display:"flex",gap:10}},
-          React.createElement("span",null,"💡"),
-          React.createElement("p",{style:{fontSize:12,color:C.textSec,lineHeight:1.6}},
-            React.createElement("span",{style:{color:C.orange,fontWeight:600}},"Barra")," primero · ",
-            React.createElement("span",{style:{color:C.blue,fontWeight:600}},"Mancuernas")," · al final ",
-            React.createElement("span",{style:{color:C.accentDim,fontWeight:600}},"Gomas"))),
-        s.exercises.map(function(ex,i){
-          const tag=getTag(ex);
-          return React.createElement("div",{key:ex.id||i,style:{background:C.surface,border:"1px solid "+C.border,borderRadius:14,marginBottom:8,display:"flex",alignItems:"center",gap:10,overflow:"hidden"}},
-            React.createElement("div",{style:{width:54,height:50,flexShrink:0,overflow:"hidden"}},
-              React.createElement("img",{src:ex.image||gImg(ex.name),alt:"",style:{width:"100%",height:"100%",objectFit:"cover"}})),
-            React.createElement("div",{style:{flex:1,minWidth:0,padding:"6px 0"}},
-              React.createElement("p",{style:{fontSize:14,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},ex.name),
-              React.createElement(Chip,{label:tag.l,color:tag.c})),
-            React.createElement("div",{style:{display:"flex",gap:4,padding:"0 10px",flexShrink:0}},
-              React.createElement("button",{onClick:function(){moveEx(reorderSi,i,-1);},disabled:i===0,style:Object.assign({},IBtn,{width:30,height:30,opacity:i===0?0.25:1})},"↑"),
-              React.createElement("button",{onClick:function(){moveEx(reorderSi,i,1);},disabled:i===s.exercises.length-1,style:Object.assign({},IBtn,{width:30,height:30,opacity:i===s.exercises.length-1?0.25:1})},"↓")));
-        })));
+    return(
+      <div style={{minHeight:"100vh",background:C.bg}}>
+        <div style={{padding:"56px 20px 14px",position:"sticky",top:0,background:C.bg,zIndex:10,borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:14}}>
+          <button onClick={()=>setReorderSi(null)} style={IBtn}>←</button>
+          <div><p style={{fontSize:18,fontWeight:800}}>Reordenar ejercicios</p><p style={{fontSize:12,color:C.textSec,marginTop:2}}>{s.name}</p></div>
+        </div>
+        <div style={{padding:"12px 20px"}}>
+          <div style={{background:C.surface,border:`1px solid ${C.accent}33`,borderRadius:14,padding:"12px 16px",marginBottom:14,display:"flex",gap:10}}>
+            <span>💡</span><p style={{fontSize:12,color:C.textSec,lineHeight:1.6}}><span style={{color:C.orange,fontWeight:600}}>Barra</span> primero · <span style={{color:C.blue,fontWeight:600}}>Mancuernas</span> · al final <span style={{color:C.accentDim,fontWeight:600}}>Gomas</span></p>
+          </div>
+          {s.exercises.map((ex,i)=>{const tag=getTag(ex);return(
+            <div key={ex.id||i} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,marginBottom:8,display:"flex",alignItems:"center",gap:10,overflow:"hidden"}}>
+              <div style={{width:54,height:50,flexShrink:0,overflow:"hidden"}}><img src={ex.image||gImg(ex.name)} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/></div>
+              <div style={{flex:1,minWidth:0,padding:"6px 0"}}>
+                <p style={{fontSize:14,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{ex.name}</p>
+                <div style={{display:"flex",gap:5,marginTop:4}}><Chip label={tag.l} color={tag.c}/></div>
+              </div>
+              <div style={{display:"flex",gap:4,padding:"0 10px",flexShrink:0}}>
+                <button onClick={()=>moveEx(reorderSi,i,-1)} disabled={i===0} style={{...IBtn,width:30,height:30,opacity:i===0?0.25:1}}>↑</button>
+                <button onClick={()=>moveEx(reorderSi,i,1)} disabled={i===s.exercises.length-1} style={{...IBtn,width:30,height:30,opacity:i===s.exercises.length-1?0.25:1}}>↓</button>
+              </div>
+            </div>
+          );})}
+        </div>
+      </div>
+    );
   }
 
   // ── SETTINGS ──────────────────────────────────────────────────
-  if(settingsOpen){
-    return React.createElement("div",{style:{minHeight:"100vh",background:C.bg}},
-      React.createElement("div",{style:{padding:"56px 22px 18px",display:"flex",alignItems:"center",gap:14,borderBottom:"1px solid "+C.border,marginBottom:22}},
-        React.createElement("button",{onClick:function(){setSettingsOpen(false);},style:IBtn},"←"),
-        React.createElement("p",{style:{fontSize:20,fontWeight:800}},"Ajustes")),
-      React.createElement("div",{style:{padding:"0 22px"}},
-        React.createElement("p",{style:SecT},"UNIDADES"),
-        React.createElement("div",{style:{background:C.surface,borderRadius:16,border:"1px solid "+C.border,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24}},
-          React.createElement("p",{style:{fontSize:15,fontWeight:500}},"Sistema de peso"),
-          React.createElement("div",{style:{display:"flex",gap:4,background:C.card,borderRadius:10,padding:3}},
-            ["kg","lb"].map(function(u){return React.createElement("button",{key:u,onClick:function(){setUnit(u);},style:{padding:"6px 16px",background:unit===u?C.accent:"transparent",border:"none",borderRadius:8,color:unit===u?"#000":C.textSec,fontWeight:700,cursor:"pointer",fontSize:13}},u);}))),
-        React.createElement("p",{style:SecT},"DATOS"),
-        React.createElement("button",{onClick:function(){
-          const rows=[["Ejercicio","Fecha","Peso","Reps","Estado","Nota"]];
-          Object.keys(logData).forEach(function(k){const n=k.split("__")[1];(logData[k].history||[]).forEach(function(h){rows.push([n,h.date,h.weight,h.reps,h.status||"",h.note||""]);});});
-          const a=document.createElement("a");a.href="data:text/csv;charset=utf-8,"+encodeURIComponent(rows.map(function(r){return r.join(",");}).join("\n"));a.download="historial.csv";a.click();
-        },style:Object.assign({},PBtn,{marginBottom:10})},"Exportar historial CSV"),
-        React.createElement("button",{onClick:function(){if(window.confirm("Borrar todos los datos?")){setLogData({});setSessions(DEF_SESSIONS);setStreak({count:0,lastDate:null});setSavedWS(null);setSesDates({});setBodyMetrics({});}},style:Object.assign({},GBtn,{color:C.red,borderColor:C.red+"44"})},"Borrar todos los datos")));
-  }
+  if(settings) return(
+    <div style={{minHeight:"100vh",background:C.bg}}>
+      <div style={{padding:"56px 22px 18px",display:"flex",alignItems:"center",gap:14,borderBottom:`1px solid ${C.border}`,marginBottom:22}}>
+        <button onClick={()=>setSettings(false)} style={IBtn}>←</button><p style={{fontSize:20,fontWeight:800}}>Ajustes</p>
+      </div>
+      <div style={{padding:"0 22px"}}>
+        <p style={SecT}>UNIDADES</p>
+        <div style={{background:C.surface,borderRadius:16,border:`1px solid ${C.border}`,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24}}>
+          <p style={{fontSize:15,fontWeight:500}}>Sistema de peso</p>
+          <div style={{display:"flex",gap:4,background:C.card,borderRadius:10,padding:3}}>
+            {["kg","lb"].map(u=><button key={u} onClick={()=>setUnit(u)} style={{padding:"6px 16px",background:unit===u?C.accent:"transparent",border:"none",borderRadius:8,color:unit===u?"#000":C.textSec,fontWeight:700,cursor:"pointer",fontSize:13}}>{u}</button>)}
+          </div>
+        </div>
+        <p style={SecT}>DATOS</p>
+        <button onClick={()=>{const rows=[["Ejercicio","Fecha","Peso","Reps","Estado","Nota"]];Object.entries(logData).forEach(([k,v])=>{const n=k.split("__")[1];(v.history||[]).forEach(h=>rows.push([n,h.date,h.weight,h.reps,h.status||"",h.note||""]));});const a=document.createElement("a");a.href="data:text/csv;charset=utf-8,"+encodeURIComponent(rows.map(r=>r.join(",")).join("\n"));a.download="historial.csv";a.click();}} style={{...PBtn,marginBottom:10}}>Exportar historial CSV</button>
+        <button onClick={()=>{if(confirm("¿Borrar todos los datos?")){setLogData({});setSessions(DEF_SESSIONS);setStreak({count:0,lastDate:null});setSavedWS(null);setSesDates({});}}} style={{...GBtn,color:C.red,borderColor:`${C.red}44`}}>Borrar todos los datos</button>
+      </div>
+    </div>
+  );
 
   // ── HISTORY ───────────────────────────────────────────────────
   if(histModal){
-    const key=histModal.sId+"__"+histModal.name;
-    const d=logData[key];const hist=(d&&d.history)||[];
-    const statusColor=function(s){return s==="max"?C.accent:s==="below"?C.red:C.yellow;};
-    return React.createElement("div",{style:{minHeight:"100vh",background:C.bg,paddingBottom:40}},
-      React.createElement("div",{style:{padding:"56px 20px 18px",display:"flex",alignItems:"center",gap:14,borderBottom:"1px solid "+C.border,marginBottom:20}},
-        React.createElement("button",{onClick:function(){setHistModal(null);},style:IBtn},"←"),
-        React.createElement("div",null,
-          React.createElement("p",{style:{fontSize:18,fontWeight:800}},histModal.name),
-          React.createElement("p",{style:{fontSize:12,color:C.textSec,marginTop:2}},histModal.muscle))),
-      React.createElement("div",{style:{padding:"0 20px"}},
-        d&&React.createElement("div",{style:{background:C.accent+"12",border:"1px solid "+C.accent+"33",borderRadius:16,padding:"14px 16px",marginBottom:16}},
-          React.createElement("p",{style:{fontSize:10,color:C.accent,fontWeight:700,letterSpacing:1.5,marginBottom:8}},"INSTRUCCION DEL ENTRENADOR"),
-          React.createElement("p",{style:{fontSize:14,fontWeight:700}},d.lastAnalysis||"Completa una sesion para ver el diagnostico"),
-          React.createElement("div",{style:{display:"flex",gap:8,marginTop:10}},
-            [{l:"PROXIMO PESO",v:d.nextWeight>0?d.nextWeight+unit:"Corporal"},{l:"OBJETIVO REPS",v:d.nextReps+" reps"},{l:"SESIONES",v:hist.length}].map(function(x){
-              return React.createElement("div",{key:x.l,style:{flex:1,background:C.surface,borderRadius:10,padding:"8px 10px",textAlign:"center"}},
-                React.createElement("p",{style:{fontSize:9,color:C.textMut,fontWeight:700,letterSpacing:1,marginBottom:3}},x.l),
-                React.createElement("p",{style:{fontSize:15,fontWeight:800,color:C.accent}},x.v));})),
-        React.createElement("p",{style:Object.assign({},SecT,{marginTop:16})},"PROGRESION"),
-        React.createElement("div",{style:{background:C.surface,border:"1px solid "+C.border,borderRadius:16,padding:16,marginBottom:20,overflowX:"auto"}},
-          React.createElement(MiniChart,{history:hist,unit:d.lastWeight>0?unit:"r",color:C.accent}))),
-        React.createElement("p",{style:SecT},"HISTORIAL"),
-        hist.length===0&&React.createElement("p",{style:{color:C.textMut,fontSize:13,textAlign:"center",padding:"24px 0"}},"Sin datos todavia"),
-        hist.slice().reverse().map(function(h,i){return React.createElement("div",{key:i,style:{background:C.surface,border:"1px solid "+C.border,borderRadius:14,padding:"13px 16px",marginBottom:8}},
-          React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
-            React.createElement("p",{style:{fontSize:17,fontWeight:700,color:h.status?statusColor(h.status):C.accent}},h.weight>0?h.weight+unit+" x "+h.reps+" reps":h.reps+" reps"),
-            React.createElement("p",{style:{fontSize:12,color:C.textMut}},h.date)),
-          h.note&&React.createElement("p",{style:{margin:"4px 0 0",fontSize:12,color:C.textSec}},'"'+h.note+'"'));})));
-  }
-
-  // ── BODY METRICS SCREEN ───────────────────────────────────────
-  if(screen==="home"&&activeTab==="body"){
-    const bm=bodyMetrics;
-    const activeMet=BODY_METRICS.find(function(m){return m.id===activeBodyMetric;})||BODY_METRICS[0];
-    const history=bm[activeBodyMetric]||[];
-    const latest=history.length>0?history[history.length-1]:null;
-    const prev=history.length>1?history[history.length-2]:null;
-    const diff=latest&&prev?latest.value-prev.value:null;
-    const isGoodDiff=diff===null?null:activeBodyMetric==="chest"?diff>0:diff<0;
-
-    return React.createElement("div",{style:{minHeight:"100vh",background:C.bg,paddingBottom:100}},
-      React.createElement("div",{style:{padding:"56px 22px 0",display:"flex",justifyContent:"space-between",alignItems:"flex-start"}},
-        React.createElement("div",null,
-          React.createElement("p",{style:{fontSize:14,color:C.textSec,fontWeight:500}},"Control corporal"),
-          React.createElement("p",{style:{fontSize:26,fontWeight:800,marginTop:4,lineHeight:1.15}},"Evolucion\ncorporal"),
-          React.createElement("p",{style:{fontSize:12,color:C.textSec,marginTop:4}},"Una vez por semana, misma hora")),
-        React.createElement("button",{onClick:function(){setShowAddBody(true);},style:{background:C.accent,border:"none",borderRadius:12,width:42,height:42,fontSize:22,color:"#000",cursor:"pointer",fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",marginTop:8}},
-          React.createElement("span",null,"+"))),
-      React.createElement("div",{style:{display:"flex",gap:8,padding:"20px 22px 0",overflowX:"auto"}},
-        BODY_METRICS.map(function(m){
-          const mhist=bm[m.id]||[];const mlast=mhist.length>0?mhist[mhist.length-1]:null;const active=activeBodyMetric===m.id;
-          return React.createElement("button",{key:m.id,onClick:function(){setActiveBodyMetric(m.id);},style:{flexShrink:0,background:active?m.color+"22":C.surface,border:"1px solid "+(active?m.color+"88":C.border),borderRadius:14,padding:"10px 14px",cursor:"pointer",textAlign:"left"}},
-            React.createElement("p",{style:{fontSize:16,marginBottom:2}},m.icon),
-            React.createElement("p",{style:{fontSize:12,fontWeight:700,color:active?m.color:C.textSec}},m.label),
-            React.createElement("p",{style:{fontSize:11,color:active?m.color:C.textMut,fontWeight:600}},mlast?mlast.value+m.unit:"—"));})),
-      React.createElement("div",{style:{padding:"20px 22px 0"}},
-        React.createElement("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:20}},
-          [{l:"ACTUAL",v:latest?latest.value+" "+activeMet.unit:"—",c:activeMet.color},
-           {l:"ANTERIOR",v:prev?prev.value+" "+activeMet.unit:"—",c:C.textSec},
-           {l:"CAMBIO",v:diff!==null?(diff===0?"=":((diff>0?"+":"")+diff.toFixed(1)+activeMet.unit)):"—",c:diff===null?C.textMut:diff===0?C.textSec:isGoodDiff?C.green:C.red}
-          ].map(function(x){return React.createElement("div",{key:x.l,style:{background:C.surface,border:"1px solid "+C.border,borderRadius:14,padding:"12px 10px",textAlign:"center"}},
-            React.createElement("p",{style:{fontSize:9,color:C.textMut,fontWeight:700,letterSpacing:1.5,marginBottom:4}},x.l),
-            React.createElement("p",{style:{fontSize:16,fontWeight:800,color:x.c}},x.v));})),
-        React.createElement("p",{style:SecT},"GRAFICA — "+activeMet.label.toUpperCase()),
-        React.createElement("div",{style:{background:C.surface,border:"1px solid "+C.border,borderRadius:16,padding:"16px 12px",marginBottom:20,overflowX:"auto"}},
-          React.createElement(MiniChart,{history:history,unit:activeMet.unit,color:activeMet.color})),
-        history.length>=2&&(function(){
-          const first=history[0].value,last2=history[history.length-1].value,total=last2-first;
-          const good=activeBodyMetric==="chest"?total>0:total<0;
-          const neutral=Math.abs(total)<0.5;
-          const msgs={
-            weight:{good:"El peso esta bajando. Vas bien, mantén el deficit calorico.",neutral:"El peso se mantiene estable. Revisa la alimentacion.",bad:"El peso ha subido. Puede ser musculo, pero revisa la dieta."},
-            waist:{good:"La cintura reduce. Senal clara de perdida de grasa visceral.",neutral:"La cintura estable. El proceso puede ser mas lento.",bad:"La cintura ha subido. Revisa el deficit calorico."},
-            chest:{good:"El pecho crece. Senal de ganancia muscular real.",neutral:"El pecho estable. Asegurate de progresar en cargas.",bad:"El pecho ha reducido. Puede ser perdida de grasa."},
-            hip:{good:"La cadera reduce. Perdida de grasa en curso.",neutral:"La cadera estable.",bad:"La cadera ha subido. Revisa la alimentacion."},
-          };
-          const msg=(msgs[activeBodyMetric]||msgs.weight)[neutral?"neutral":good?"good":"bad"];
-          return React.createElement("div",{style:{background:(neutral?C.yellow:good?C.green:C.red)+"12",border:"1px solid "+(neutral?C.yellow:good?C.green:C.red)+"44",borderRadius:14,padding:"12px 16px",marginBottom:20,display:"flex",gap:10,alignItems:"flex-start"}},
-            React.createElement("span",{style:{fontSize:20}},neutral?"📊":good?"✅":"⚠️"),
-            React.createElement("div",null,
-              React.createElement("p",{style:{fontSize:13,fontWeight:700,color:neutral?C.yellow:good?C.green:C.red,marginBottom:3}},neutral?"Sin cambio significativo":good?"Progreso positivo":"Revision recomendada"),
-              React.createElement("p",{style:{fontSize:12,color:C.textSec,lineHeight:1.5}},msg)));
-        })(),
-        React.createElement("p",{style:SecT},"HISTORIAL — "+activeMet.label.toUpperCase()),
-        history.length===0&&React.createElement("p",{style:{color:C.textMut,fontSize:13,textAlign:"center",padding:"20px 0"}},"Sin registros. Pulsa + para anadir."),
-        history.slice().reverse().map(function(h,i){
-          const realIdx=history.length-1-i;
-          const prevH=history[realIdx-1];
-          const d2=prevH?h.value-prevH.value:null;
-          const good2=d2===null?null:activeBodyMetric==="chest"?d2>0:d2<0;
-          return React.createElement("div",{key:i,style:{background:C.surface,border:"1px solid "+C.border,borderRadius:14,padding:"13px 16px",marginBottom:8,display:"flex",alignItems:"center",gap:12}},
-            React.createElement("div",{style:{flex:1}},
-              React.createElement("p",{style:{fontSize:18,fontWeight:700,color:activeMet.color}},h.value+" "+activeMet.unit),
-              React.createElement("p",{style:{fontSize:12,color:C.textMut,marginTop:2}},h.date)),
-            d2!==null&&React.createElement("span",{style:{fontSize:12,fontWeight:700,color:good2?C.green:d2===0?C.textMut:C.red}},d2===0?"=":((d2>0?"+":"")+d2.toFixed(1)+activeMet.unit)),
-            React.createElement("button",{onClick:function(){
-              const updated=(bm[activeBodyMetric]||[]).filter(function(_,idx){return idx!==realIdx;});
-              setBodyMetrics(Object.assign({},bm,{[activeBodyMetric]:updated}));
-            },style:{background:"none",border:"none",color:C.textMut,cursor:"pointer",fontSize:16,padding:"4px"}},"✕"));
-        })),
-      showAddBody&&React.createElement("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",display:"flex",alignItems:"flex-end",zIndex:100,backdropFilter:"blur(10px)"}},
-        React.createElement("div",{style:{background:C.surface,borderRadius:"24px 24px 0 0",padding:"26px 22px 52px",width:"100%",maxWidth:430,border:"1px solid "+C.border}},
-          React.createElement("p",{style:{fontSize:20,fontWeight:800,marginBottom:4}},"Registrar medidas"),
-          React.createElement("p",{style:{fontSize:13,color:C.textSec,marginBottom:20}},"Rellena solo las que midas hoy"),
-          BODY_METRICS.map(function(m){return React.createElement("div",{key:m.id,style:{marginBottom:14}},
-            React.createElement("p",{style:{fontSize:11,color:m.color,fontWeight:700,letterSpacing:1.5,marginBottom:6}},m.icon+" "+m.label.toUpperCase()+" ("+m.unit+") · "+m.desc),
-            React.createElement("div",{style:{background:C.card,border:"1px solid "+(addBodyVals[m.id]?m.color+"44":C.border),borderRadius:12,display:"flex",alignItems:"center",gap:10,padding:"0 14px"}},
-              React.createElement("input",{value:addBodyVals[m.id],onChange:function(e){setAddBodyVals(function(p){const n=Object.assign({},p);n[m.id]=e.target.value;return n;});},
-                placeholder:m.id==="weight"?"Ej: 75.5":m.id==="waist"?"Ej: 86":m.id==="chest"?"Ej: 98":"Ej: 95",
-                style:{flex:1,background:"none",border:"none",padding:"13px 0",color:C.text,fontSize:16,fontWeight:600,outline:"none"},
-                type:"number",inputMode:"decimal"}),
-              React.createElement("span",{style:{fontSize:13,color:C.textMut,fontWeight:600}},m.unit)));
-          }),
-          React.createElement("div",{style:{display:"flex",gap:10,marginTop:8}},
-            React.createElement("button",{onClick:function(){setShowAddBody(false);setAddBodyVals({weight:"",waist:"",chest:"",hip:""}); },style:Object.assign({},GBtn,{flex:1})},"Cancelar"),
-            React.createElement("button",{onClick:saveBodyEntry,style:Object.assign({},PBtn,{flex:2})},"Guardar")))),
-      React.createElement("div",{style:{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,background:C.bg,borderTop:"1px solid "+C.border,zIndex:30,display:"flex",paddingBottom:"env(safe-area-inset-bottom,0px)"}},
-        [{id:"train",icon:"🏋️",label:"Entreno"},{id:"body",icon:"📊",label:"Cuerpo"}].map(function(t){
-          return React.createElement("button",{key:t.id,onClick:function(){setActiveTab(t.id);},style:{flex:1,background:"none",border:"none",padding:"12px 0 10px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:3}},
-            React.createElement("span",{style:{fontSize:20}},t.icon),
-            React.createElement("span",{style:{fontSize:10,fontWeight:700,letterSpacing:0.5,color:activeTab===t.id?C.accent:C.textMut}},t.label.toUpperCase()),
-            activeTab===t.id&&React.createElement("div",{style:{width:20,height:2,background:C.accent,borderRadius:99}}));
-        })));
+    const key=`${histModal.sId}__${histModal.name}`,d=logData[key],hist=d?.history||[];
+    const statusDot = s => s==="max"?C.accent:s==="below"?C.red:C.yellow;
+    return(
+      <div style={{minHeight:"100vh",background:C.bg,paddingBottom:40}}>
+        <div style={{padding:"56px 20px 18px",display:"flex",alignItems:"center",gap:14,borderBottom:`1px solid ${C.border}`,marginBottom:20}}>
+          <button onClick={()=>setHistModal(null)} style={IBtn}>←</button>
+          <div><p style={{fontSize:18,fontWeight:800}}>{histModal.name}</p><p style={{fontSize:12,color:C.textSec,marginTop:2}}>{histModal.muscle}</p></div>
+        </div>
+        <div style={{padding:"0 20px"}}>
+          {d&&(
+            <>
+              <div style={{background:`${C.accent}12`,border:`1px solid ${C.accent}33`,borderRadius:16,padding:"14px 16px",marginBottom:16}}>
+                <p style={{fontSize:10,color:C.accent,fontWeight:700,letterSpacing:1.5,marginBottom:8}}>INSTRUCCIÓN DEL ENTRENADOR</p>
+                <p style={{fontSize:14,fontWeight:700,color:C.text}}>{d.lastAnalysis||"Completa una sesión para ver el diagnóstico"}</p>
+                <div style={{display:"flex",gap:8,marginTop:10}}>
+                  <div style={{flex:1,background:C.surface,borderRadius:10,padding:"8px 10px",textAlign:"center"}}>
+                    <p style={{fontSize:9,color:C.textMut,fontWeight:700,letterSpacing:1,marginBottom:3}}>PRÓXIMO PESO</p>
+                    <p style={{fontSize:15,fontWeight:800,color:C.accent}}>{d.nextWeight>0?`${d.nextWeight}${unit}`:"Corporal"}</p>
+                  </div>
+                  <div style={{flex:1,background:C.surface,borderRadius:10,padding:"8px 10px",textAlign:"center"}}>
+                    <p style={{fontSize:9,color:C.textMut,fontWeight:700,letterSpacing:1,marginBottom:3}}>OBJETIVO REPS</p>
+                    <p style={{fontSize:15,fontWeight:800,color:C.accent}}>{d.nextReps} reps</p>
+                  </div>
+                  <div style={{flex:1,background:C.surface,borderRadius:10,padding:"8px 10px",textAlign:"center"}}>
+                    <p style={{fontSize:9,color:C.textMut,fontWeight:700,letterSpacing:1,marginBottom:3}}>SESIONES</p>
+                    <p style={{fontSize:15,fontWeight:800,color:C.accent}}>{hist.length}</p>
+                  </div>
+                </div>
+              </div>
+              <p style={SecT}>PROGRESIÓN</p>
+              <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:16,padding:16,marginBottom:20,overflowX:"auto"}}><MiniChart history={hist} unit={d.lastWeight>0?unit:"r"}/></div>
+            </>
+          )}
+          <p style={SecT}>HISTORIAL</p>
+          {hist.length===0&&<p style={{color:C.textMut,fontSize:13,textAlign:"center",padding:"24px 0"}}>Sin datos todavía</p>}
+          {[...hist].reverse().map((h,i)=>(
+            <div key={i} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,padding:"13px 16px",marginBottom:8}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <p style={{fontSize:17,fontWeight:700,color:h.status?statusDot(h.status):C.accent}}>{h.weight>0?`${h.weight}${unit} × ${h.reps} reps`:`${h.reps} reps`}</p>
+                <p style={{fontSize:12,color:C.textMut}}>{h.date}</p>
+              </div>
+              {h.note&&<p style={{margin:"4px 0 0",fontSize:12,color:C.textSec}}>"{h.note}"</p>}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   }
 
   // ── HOME ──────────────────────────────────────────────────────
   if(screen==="home"){
     const hr=new Date().getHours();
-    const greet=hr<13?"Buenos dias":hr<20?"Buenas tardes":"Buenas noches";
-    const allRec=sessions.flatMap(function(s){return s.exercises.map(function(ex){return {ex:ex,s:s,d:getLog(s.id,ex.name)};}).filter(function(x){return x.d;});});
-    return React.createElement("div",{style:{minHeight:"100vh",background:C.bg,paddingBottom:90}},
-      React.createElement("div",{style:{padding:"56px 22px 0",display:"flex",justifyContent:"space-between",alignItems:"flex-start"}},
-        React.createElement("div",null,
-          React.createElement("p",{style:{fontSize:14,color:C.textSec,fontWeight:500}},greet),
-          React.createElement("p",{style:{fontSize:26,fontWeight:800,marginTop:4,lineHeight:1.15}},"Tu entrenamiento\nde hoy")),
-        React.createElement("button",{onClick:function(){setSettingsOpen(true);},style:Object.assign({},IBtn,{width:42,height:42,marginTop:4,borderRadius:12,fontSize:18})},"⚙️")),
-      React.createElement("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,padding:"20px 22px 0"}},
-        [{l:"Racha",v:streak.count+" dias",i:"🔥"},{l:"Sesiones",v:Object.keys(sesDates).length,i:"✓"},{l:"Records",v:allRec.length,i:"↑"}].map(function(x){return React.createElement("div",{key:x.l,style:{background:C.surface,border:"1px solid "+C.border,borderRadius:14,padding:"14px 8px",textAlign:"center"}},
-          React.createElement("p",{style:{fontSize:18,marginBottom:4}},x.i),
-          React.createElement("p",{style:{fontSize:18,fontWeight:800}},x.v),
-          React.createElement("p",{style:{fontSize:10,color:C.textMut,fontWeight:600,letterSpacing:1,marginTop:2}},x.l.toUpperCase()));})),
-      savedWS&&(function(){
-        const s=sessions.find(function(ss){return ss.id===savedWS.sId;});
-        if(!s) return null;
-        const ex=s.exercises[savedWS.exIdx||0];
-        const done=Object.keys(savedWS.allSetLogs||{}).length;
-        return React.createElement("div",{onClick:function(){startSession(s);},style:{margin:"18px 22px 0",borderRadius:20,overflow:"hidden",cursor:"pointer",position:"relative",height:92}},
-          React.createElement("img",{src:ex?ex.image||gImg(ex.name):gImg(""),alt:"",style:{width:"100%",height:"100%",objectFit:"cover",filter:"brightness(0.3)"}}),
-          React.createElement("div",{style:{position:"absolute",inset:0,background:"linear-gradient(90deg,"+C.accent+"22,transparent)",display:"flex",alignItems:"center",padding:"0 18px",gap:14}},
-            React.createElement("div",{style:{width:40,height:40,borderRadius:12,background:C.accent,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}},"⏸"),
-            React.createElement("div",null,
-              React.createElement("p",{style:{fontSize:12,color:C.accent,fontWeight:700,letterSpacing:0.5}},"SESION EN PAUSA"),
-              React.createElement("p",{style:{fontSize:15,fontWeight:700,marginTop:2}},s.name+" · "+done+" ejercicio"+(done!==1?"s":"")+" completado"+(done!==1?"s":""))),
-            React.createElement("span",{style:{marginLeft:"auto",color:C.accent,fontSize:22}},"›")));
-      })(),
-      suggested&&React.createElement("div",{style:{padding:"20px 22px 0"}},
-        React.createElement("p",{style:Object.assign({},SecT,{marginBottom:12})},"SUGERIDA PARA HOY"),
-        React.createElement("div",{onClick:function(){startSession(suggested);},style:{borderRadius:22,overflow:"hidden",cursor:"pointer",position:"relative",height:190}},
-          React.createElement("img",{src:suggested.exercises[0]?suggested.exercises[0].image||gImg(""):gImg(""),alt:"",style:{width:"100%",height:"100%",objectFit:"cover",filter:"brightness(0.4)"}}),
-          React.createElement("div",{style:{position:"absolute",inset:0,background:"linear-gradient(to top,rgba(12,12,14,0.97) 0%,rgba(12,12,14,0.15) 60%,transparent 100%)"}}),
-          React.createElement("div",{style:{position:"absolute",top:14,left:14}},
-            React.createElement("div",{style:{width:36,height:36,borderRadius:10,background:C.accent,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:16,color:"#000"}},suggested.icon)),
-          React.createElement("div",{style:{position:"absolute",bottom:16,left:18,right:18,display:"flex",justifyContent:"space-between",alignItems:"flex-end"}},
-            React.createElement("div",null,
-              React.createElement("p",{style:{fontSize:22,fontWeight:800,lineHeight:1}},suggested.name),
-              React.createElement("p",{style:{fontSize:13,color:"rgba(255,255,255,0.5)",marginTop:4}},suggested.subtitle+" · "+suggested.exercises.length+" ejercicios"),
-              sesDates[suggested.id]
-                ?React.createElement("p",{style:{fontSize:11,color:C.accent,fontWeight:600,marginTop:4}},"Ultima vez: "+sesDates[suggested.id].display)
-                :React.createElement("p",{style:{fontSize:11,color:C.accentDim,fontWeight:600,marginTop:4}},"Sin completar aun")),
-            React.createElement("div",{style:{width:40,height:40,borderRadius:12,background:C.accent,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,color:"#000",flexShrink:0}},"▶")))),
-      React.createElement("div",{style:{padding:"22px 22px 0"}},
-        React.createElement("p",{style:SecT},"TODAS LAS SESIONES"),
-        sessions.map(function(s,si){
-          const isSug=s.id===suggested.id,hasSaved=savedWS&&savedWS.sId===s.id,lastDate=sesDates[s.id];
-          return React.createElement("div",{key:s.id,style:{background:C.surface,border:"1px solid "+(hasSaved?C.accent+"55":C.border),borderRadius:20,marginBottom:12,overflow:"hidden"}},
-            React.createElement("div",{style:{display:"flex",alignItems:"center",gap:14,padding:"16px 16px 10px",cursor:"pointer"},onClick:function(){startSession(s);}},
-              React.createElement("div",{style:{width:44,height:44,borderRadius:13,background:isSug?C.accent:C.accent+"18",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:16,color:isSug?"#000":C.accent,flexShrink:0}},s.icon),
-              React.createElement("div",{style:{flex:1,minWidth:0}},
-                React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8}},
-                  React.createElement("p",{style:{fontSize:16,fontWeight:700}},s.name),
-                  isSug&&React.createElement("span",{style:{fontSize:9,background:C.accent+"20",color:C.accent,borderRadius:6,padding:"2px 7px",fontWeight:700}},"HOY")),
-                React.createElement("p",{style:{fontSize:12,color:C.textSec,marginTop:2}},s.subtitle+" · "+s.exercises.length+" ejercicios"),
-                lastDate
-                  ?React.createElement("p",{style:{fontSize:11,color:C.textMut,marginTop:2}},"Ultima vez: "+lastDate.display)
-                  :React.createElement("p",{style:{fontSize:11,color:C.textMut,marginTop:2}},"Sin completar aun")),
-              React.createElement("button",{onClick:function(e){e.stopPropagation();setReorderSi(si);},style:Object.assign({},IBtn,{width:32,height:32,fontSize:13,flexShrink:0})},"⇅")),
-            React.createElement("div",{style:{display:"flex",gap:5,padding:"0 16px 12px",overflowX:"auto"}},
-              s.exercises.map(function(ex,ei){
-                const d=getLog(s.id,ex.name);const gc=GC[ex.group]||C.accent;
-                return React.createElement("div",{key:ex.id||ei,style:{flexShrink:0,position:"relative",cursor:"pointer"},onClick:function(e){e.stopPropagation();setSwapModal({si:si,ei:ei,group:ex.group});setLibQ("");}},
-                  React.createElement("div",{style:{width:52,height:52,borderRadius:12,overflow:"hidden",border:"1.5px solid "+C.border}},
-                    React.createElement("img",{src:ex.image||gImg(ex.name),alt:"",style:{width:"100%",height:"100%",objectFit:"cover"}})),
-                  React.createElement("div",{style:{position:"absolute",bottom:0,left:0,right:0,height:16,background:"linear-gradient(to top,rgba(0,0,0,0.7),transparent)",borderRadius:"0 0 10px 10px",display:"flex",alignItems:"flex-end",justifyContent:"center",paddingBottom:2}},
-                    React.createElement("div",{style:{width:5,height:5,borderRadius:99,background:gc}})),
-                  d&&React.createElement("div",{style:{position:"absolute",top:-3,right:-3,width:14,height:14,borderRadius:99,background:d.lastAnalysis==="SUBIR PESO"?C.accent:d.lastAnalysis==="BAJAR PESO"?C.red:C.yellow,display:"flex",alignItems:"center",justifyContent:"center"}},
-                    React.createElement("span",{style:{fontSize:8,color:"#000",fontWeight:900}},"✓")));
-              })),
-            React.createElement("div",{style:{padding:"0 16px 14px"}},
-              React.createElement("button",{onClick:function(){startSession(s);},style:Object.assign({},PBtn,{fontSize:14,padding:"12px"})},hasSaved?"⏸  Continuar sesion":"▶  Empezar sesion")));
-        })),
-      allRec.length>0&&React.createElement("div",{style:{padding:"8px 22px 0"}},
-        React.createElement("p",{style:SecT},"MIS RECORDS"),
-        allRec.map(function(x){return React.createElement("div",{key:x.ex.name+x.s.id,onClick:function(){setHistModal({name:x.ex.name,sId:x.s.id,muscle:x.ex.muscle});},style:{display:"flex",alignItems:"center",gap:12,padding:"11px 0",borderBottom:"1px solid "+C.border,cursor:"pointer"}},
-          React.createElement("div",{style:{width:40,height:40,borderRadius:10,overflow:"hidden",flexShrink:0}},
-            React.createElement("img",{src:x.ex.image||gImg(x.ex.name),alt:"",style:{width:"100%",height:"100%",objectFit:"cover"}})),
-          React.createElement("div",{style:{flex:1,minWidth:0}},
-            React.createElement("p",{style:{fontSize:14,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},x.ex.name),
-            React.createElement("p",{style:{fontSize:11,color:GC[x.ex.group]||C.textSec,marginTop:1,fontWeight:500}},x.ex.group)),
-          React.createElement("div",{style:{textAlign:"right",flexShrink:0}},
-            React.createElement("p",{style:{fontSize:16,fontWeight:700,color:C.accent}},x.d.lastWeight>0?x.d.lastWeight+unit+" x "+x.d.lastReps:x.d.lastReps+" reps"),
-            React.createElement("p",{style:{fontSize:10,color:x.d.lastAnalysis==="SUBIR PESO"?C.accent:x.d.lastAnalysis==="BAJAR PESO"?C.red:C.yellow,marginTop:1,fontWeight:600}},x.d.lastAnalysis||"")),
-          React.createElement("span",{style:{color:C.textMut,marginLeft:2}},"›"));})),
-      React.createElement("div",{style:{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,background:C.bg,borderTop:"1px solid "+C.border,zIndex:30,display:"flex",paddingBottom:"env(safe-area-inset-bottom,0px)"}},
-        [{id:"train",icon:"🏋️",label:"Entreno"},{id:"body",icon:"📊",label:"Cuerpo"}].map(function(t){
-          return React.createElement("button",{key:t.id,onClick:function(){setActiveTab(t.id);},style:{flex:1,background:"none",border:"none",padding:"12px 0 10px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:3}},
-            React.createElement("span",{style:{fontSize:20}},t.icon),
-            React.createElement("span",{style:{fontSize:10,fontWeight:700,letterSpacing:0.5,color:activeTab===t.id?C.accent:C.textMut}},t.label.toUpperCase()),
-            activeTab===t.id&&React.createElement("div",{style:{width:20,height:2,background:C.accent,borderRadius:99}}));
-        })));
+    const greet=hr<13?"Buenos días":hr<20?"Buenas tardes":"Buenas noches";
+    const allRec=sessions.flatMap(s=>s.exercises.map(ex=>({ex,s,d:getLog(s.id,ex.name)})).filter(x=>x.d));
+    return(
+      <div style={{minHeight:"100vh",background:C.bg,paddingBottom:60}}>
+        <div style={{padding:"56px 22px 0",display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+          <div>
+            <p style={{fontSize:14,color:C.textSec,fontWeight:500}}>{greet}</p>
+            <p style={{fontSize:26,fontWeight:800,marginTop:4,lineHeight:1.15}}>Tu entrenamiento<br/>de hoy</p>
+          </div>
+          <button onClick={()=>setSettings(true)} style={{...IBtn,width:42,height:42,marginTop:4,borderRadius:12,fontSize:18}}>⚙️</button>
+        </div>
+        {/* Stats */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,padding:"20px 22px 0"}}>
+          {[{l:"Racha",v:`${streak.count} días`,i:"🔥"},{l:"Sesiones",v:Object.keys(sesDates).length,i:"✓"},{l:"Récords",v:allRec.length,i:"↑"}].map(x=>(
+            <div key={x.l} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,padding:"14px 8px",textAlign:"center"}}>
+              <p style={{fontSize:18,marginBottom:4}}>{x.i}</p><p style={{fontSize:18,fontWeight:800}}>{x.v}</p><p style={{fontSize:10,color:C.textMut,fontWeight:600,letterSpacing:1,marginTop:2}}>{x.l.toUpperCase()}</p>
+            </div>
+          ))}
+        </div>
+        {/* Paused session banner */}
+        {savedWS&&(()=>{const s=sessions.find(s=>s.id===savedWS.sId);if(!s)return null;const ex=s.exercises[savedWS.exIdx||0];const done=Object.keys(savedWS.allSetLogs||{}).length;return(
+          <div onClick={()=>startSession(s)} style={{margin:"18px 22px 0",borderRadius:20,overflow:"hidden",cursor:"pointer",position:"relative",height:92}}>
+            <img src={ex?.image||gImg("")} alt="" style={{width:"100%",height:"100%",objectFit:"cover",filter:"brightness(0.3)"}}/>
+            <div style={{position:"absolute",inset:0,background:`linear-gradient(90deg,${C.accent}22,transparent)`,display:"flex",alignItems:"center",padding:"0 18px",gap:14}}>
+              <div style={{width:40,height:40,borderRadius:12,background:C.accent,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>⏸</div>
+              <div><p style={{fontSize:12,color:C.accent,fontWeight:700,letterSpacing:0.5}}>SESIÓN EN PAUSA</p><p style={{fontSize:15,fontWeight:700,marginTop:2}}>{s.name} · {done} ejercicio{done!==1?"s":""} completado{done!==1?"s":""}</p></div>
+              <span style={{marginLeft:"auto",color:C.accent,fontSize:22}}>›</span>
+            </div>
+          </div>
+        );})()}
+        {/* Suggested */}
+        {suggested&&(
+          <div style={{padding:"20px 22px 0"}}>
+            <p style={{...SecT,marginBottom:12}}>SUGERIDA PARA HOY</p>
+            <div onClick={()=>startSession(suggested)} style={{borderRadius:22,overflow:"hidden",cursor:"pointer",position:"relative",height:190}}>
+              <img src={suggested.exercises[0]?.image||gImg("")} alt="" style={{width:"100%",height:"100%",objectFit:"cover",filter:"brightness(0.4)"}}/>
+              <div style={{position:"absolute",inset:0,background:"linear-gradient(to top,rgba(12,12,14,0.97) 0%,rgba(12,12,14,0.15) 60%,transparent 100%)"}}/>
+              <div style={{position:"absolute",top:14,left:14}}><div style={{width:36,height:36,borderRadius:10,background:C.accent,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:16,color:"#000"}}>{suggested.icon}</div></div>
+              <div style={{position:"absolute",bottom:16,left:18,right:18,display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
+                <div>
+                  <p style={{fontSize:22,fontWeight:800,lineHeight:1}}>{suggested.name}</p>
+                  <p style={{fontSize:13,color:"rgba(255,255,255,0.5)",marginTop:4}}>{suggested.subtitle} · {suggested.exercises.length} ejercicios</p>
+                  {sesDates[suggested.id]?<p style={{fontSize:11,color:C.accent,fontWeight:600,marginTop:4}}>Última vez: {sesDates[suggested.id].display}</p>:<p style={{fontSize:11,color:C.accentDim,fontWeight:600,marginTop:4}}>Sin completar aún</p>}
+                </div>
+                <div style={{width:40,height:40,borderRadius:12,background:C.accent,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,color:"#000",flexShrink:0}}>▶</div>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* All sessions */}
+        <div style={{padding:"22px 22px 0"}}>
+          <p style={SecT}>TODAS LAS SESIONES</p>
+          {sessions.map((s,si)=>{
+            const isSug=s.id===suggested?.id,hasSaved=savedWS?.sId===s.id,lastDate=sesDates[s.id];
+            return(
+              <div key={s.id} style={{background:C.surface,border:`1px solid ${hasSaved?`${C.accent}55`:C.border}`,borderRadius:20,marginBottom:12,overflow:"hidden"}}>
+                <div style={{display:"flex",alignItems:"center",gap:14,padding:"16px 16px 10px",cursor:"pointer"}} onClick={()=>startSession(s)}>
+                  <div style={{width:44,height:44,borderRadius:13,background:isSug?C.accent:`${C.accent}18`,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:16,color:isSug?"#000":C.accent,flexShrink:0}}>{s.icon}</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <p style={{fontSize:16,fontWeight:700}}>{s.name}</p>
+                      {isSug&&<span style={{fontSize:9,background:`${C.accent}20`,color:C.accent,borderRadius:6,padding:"2px 7px",fontWeight:700}}>HOY</span>}
+                    </div>
+                    <p style={{fontSize:12,color:C.textSec,marginTop:2}}>{s.subtitle} · {s.exercises.length} ejercicios</p>
+                    {lastDate?<p style={{fontSize:11,color:C.textMut,marginTop:2}}>Última vez: {lastDate.display}</p>:<p style={{fontSize:11,color:C.textMut,marginTop:2}}>Sin completar aún</p>}
+                  </div>
+                  <button onClick={e=>{e.stopPropagation();setReorderSi(si);}} style={{...IBtn,width:32,height:32,fontSize:13,flexShrink:0}}>⇅</button>
+                </div>
+                <div style={{display:"flex",gap:5,padding:"0 16px 12px",overflowX:"auto"}}>
+                  {s.exercises.map((ex,ei)=>{
+                    const d=getLog(s.id,ex.name);const gc=GC[ex.group]||C.accent;
+                    return(
+                      <div key={ex.id||ei} style={{flexShrink:0,position:"relative",cursor:"pointer"}} onClick={e=>{e.stopPropagation();setSwapModal({si,ei,group:ex.group});setLibQ("");}}>
+                        <div style={{width:52,height:52,borderRadius:12,overflow:"hidden",border:`1.5px solid ${C.border}`}}><img src={ex.image||gImg(ex.name)} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/></div>
+                        <div style={{position:"absolute",bottom:0,left:0,right:0,height:16,background:"linear-gradient(to top,rgba(0,0,0,0.7),transparent)",borderRadius:"0 0 10px 10px",display:"flex",alignItems:"flex-end",justifyContent:"center",paddingBottom:2}}><div style={{width:5,height:5,borderRadius:99,background:gc}}/></div>
+                        {d&&<div style={{position:"absolute",top:-3,right:-3,width:14,height:14,borderRadius:99,background:d.lastAnalysis==="SUBIR PESO"?C.accent:d.lastAnalysis==="BAJAR PESO"?C.red:C.yellow,display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:8,color:"#000",fontWeight:900}}>✓</span></div>}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{padding:"0 16px 14px"}}><button onClick={()=>startSession(s)} style={{...PBtn,fontSize:14,padding:"12px"}}>{hasSaved?"⏸  Continuar sesión":"▶  Empezar sesión"}</button></div>
+              </div>
+            );
+          })}
+        </div>
+        {/* Records */}
+        {allRec.length>0&&(
+          <div style={{padding:"8px 22px 0"}}>
+            <p style={SecT}>MIS RÉCORDS</p>
+            {allRec.map(({ex,s,d})=>(
+              <div key={ex.name+s.id} onClick={()=>setHistModal({name:ex.name,sId:s.id,muscle:ex.muscle})} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 0",borderBottom:`1px solid ${C.border}`,cursor:"pointer"}}>
+                <div style={{width:40,height:40,borderRadius:10,overflow:"hidden",flexShrink:0}}><img src={ex.image||gImg(ex.name)} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/></div>
+                <div style={{flex:1,minWidth:0}}>
+                  <p style={{fontSize:14,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{ex.name}</p>
+                  <p style={{fontSize:11,color:GC[ex.group]||C.textSec,marginTop:1,fontWeight:500}}>{ex.group}</p>
+                </div>
+                <div style={{textAlign:"right",flexShrink:0}}>
+                  <p style={{fontSize:16,fontWeight:700,color:C.accent}}>{d.lastWeight>0?`${d.lastWeight}${unit} × ${d.lastReps}`:`${d.lastReps} reps`}</p>
+                  <p style={{fontSize:10,color:d.lastAnalysis==="SUBIR PESO"?C.accent:d.lastAnalysis==="BAJAR PESO"?C.red:C.yellow,marginTop:1,fontWeight:600}}>{d.lastAnalysis||""}</p>
+                </div>
+                <span style={{color:C.textMut,marginLeft:2}}>›</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
   }
 
   // ── EXERCISE SCREEN ───────────────────────────────────────────
@@ -749,173 +730,226 @@ function App(){
     const plan=getPlan(activeS.id,ex);
     const tag=getTag(ex);const gc=GC[ex.group]||C.accent;
     const range=REP_RANGES[ex.category||"compound_secondary"];
-    const pct=(exIdx/activeS.exercises.length)*100;
-    const completedInSession=Object.keys(allSetLogs).filter(function(k){return allSetLogs[k]&&allSetLogs[k].length>0;}).length;
-    const liveReps=parseInt(repsI)||0;
-    const liveColor=liveReps===0?C.textMut:liveReps<range.min?C.red:liveReps>=range.max?C.accent:C.yellow;
+    const pct=((exIdx)/activeS.exercises.length)*100;
+    const imgUrl=ex.image||gImg(ex.name);
+    const completedInSession=Object.values(allSetLogs).filter(l=>l&&l.length>0).length;
 
-    return React.createElement("div",{style:{minHeight:"100vh",background:C.bg,paddingBottom:130}},
-      React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"52px 18px 10px",position:"sticky",top:0,background:C.bg,zIndex:20}},
-        React.createElement("button",{onClick:function(){setTimerOn(false);setScreen("home");},style:IBtn},"✕"),
-        React.createElement("div",{style:{textAlign:"center"}},
-          React.createElement("p",{style:{fontSize:13,fontWeight:700}},activeS.name),
-          React.createElement("p",{style:{fontSize:11,color:C.textSec,marginTop:2}},(exIdx+1)+" de "+activeS.exercises.length)),
-        React.createElement("div",{style:{background:C.surface,borderRadius:12,padding:"6px 12px",border:"1px solid "+C.border}},
-          React.createElement("p",{style:{fontSize:15,fontWeight:700,color:C.accent}},fmt(totalSecs)))),
-      React.createElement("div",{style:{height:2,background:C.border,margin:"0 18px"}},
-        React.createElement("div",{style:{height:"100%",background:C.accent,width:pct+"%",transition:"width 0.5s",borderRadius:99}})),
-      React.createElement("div",{style:{position:"relative",height:210,margin:"10px 0 0",overflow:"hidden"}},
-        React.createElement("img",{src:ex.image||gImg(ex.name),alt:ex.name,style:{width:"100%",height:"100%",objectFit:"cover",objectPosition:"center top"}}),
-        React.createElement("div",{style:{position:"absolute",inset:0,background:"linear-gradient(to top,"+C.bg+" 0%,rgba(12,12,14,0.4) 55%,transparent 100%)"}}),
-        React.createElement("div",{style:{position:"absolute",bottom:14,left:18,right:18}},
-          React.createElement("div",{style:{display:"flex",gap:6,marginBottom:7,flexWrap:"wrap"}},
-            React.createElement(Chip,{label:ex.group,color:gc}),
-            React.createElement(Chip,{label:tag.l,color:tag.c}),
-            React.createElement(Chip,{label:range.label,color:C.textMut})),
-          React.createElement("p",{style:{fontSize:26,fontWeight:900,lineHeight:1,letterSpacing:-0.5}},ex.name),
-          React.createElement("p",{style:{fontSize:12,color:"rgba(255,255,255,0.5)",marginTop:4}},ex.muscle))),
-      restOn&&restSecs>0&&React.createElement("div",{style:{margin:"10px 18px 0",background:C.surface,border:"1px solid "+C.accent+"44",borderRadius:18,padding:"12px 16px"}},
-        React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
-          React.createElement("div",null,
-            React.createElement("p",{style:{fontSize:10,color:C.textMut,letterSpacing:1.5,fontWeight:700,marginBottom:3}},"DESCANSO"),
-            React.createElement("p",{style:{fontSize:34,fontWeight:800,color:C.accent,lineHeight:1}},fmt(restSecs))),
-          React.createElement("div",{style:{display:"flex",gap:10,alignItems:"center"}},
-            React.createElement("svg",{width:42,height:42,style:{transform:"rotate(-90deg)"}},
-              React.createElement("circle",{cx:21,cy:21,r:17,fill:"none",stroke:C.border,strokeWidth:3}),
-              React.createElement("circle",{cx:21,cy:21,r:17,fill:"none",stroke:C.accent,strokeWidth:3,strokeDasharray:2*Math.PI*17,strokeDashoffset:2*Math.PI*17*(restSecs/(ex.rest||90)),style:{transition:"stroke-dashoffset 1s linear"}})),
-            React.createElement("button",{onClick:function(){setRestOn(false);setRestSecs(0);},style:Object.assign({},GBtn,{width:"auto",padding:"6px 12px",fontSize:12})},"Saltar"))),
-        nextEx&&React.createElement("div",{style:{marginTop:10,paddingTop:10,borderTop:"1px solid "+C.border,display:"flex",alignItems:"center",gap:10}},
-          React.createElement("div",{style:{width:36,height:36,borderRadius:8,overflow:"hidden",flexShrink:0}},
-            React.createElement("img",{src:nextEx.image||gImg(nextEx.name),alt:"",style:{width:"100%",height:"100%",objectFit:"cover"}})),
-          React.createElement("div",{style:{flex:1,minWidth:0}},
-            React.createElement("p",{style:{fontSize:10,color:C.textMut,fontWeight:700,letterSpacing:1,marginBottom:2}},"SIGUIENTE"),
-            React.createElement("p",{style:{fontSize:13,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},nextEx.name)),
-          React.createElement(Chip,{label:getTag(nextEx).l,color:getTag(nextEx).c}))),
-      React.createElement("div",{style:{display:"flex",justifyContent:"center",gap:5,padding:"10px 0"}},
-        Array.from({length:ex.sets}).map(function(_,i){
-          const isLogged=(allSetLogs[exIdx]||[]).length>i;
-          return React.createElement("div",{key:i,style:{width:i===setIdx?26:8,height:8,borderRadius:99,background:isLogged?C.accent:i===setIdx?C.accent:C.border,transition:"all 0.3s"}});
-        })),
-      React.createElement("div",{style:{padding:"4px 18px 16px"}},
-        React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:12}},
-          React.createElement("p",{style:{fontSize:20,fontWeight:800}},"Serie "+(setIdx+1)+React.createElement("span",{style:{color:C.textMut,fontWeight:400}}," / "+ex.sets)),
-          React.createElement("p",{style:{fontSize:12,color:C.textSec}},"Objetivo: "+range.label)),
-        React.createElement("div",{style:{display:"flex",gap:10,marginBottom:10}},
-          !ex.isGoma&&!ex.isCuerpo&&React.createElement("div",{style:{flex:1.3,background:C.surface,borderRadius:16,padding:13,border:"1px solid "+C.border}},
-            React.createElement("p",{style:{fontSize:10,color:C.textMut,letterSpacing:1.5,fontWeight:700,marginBottom:7}},ex.isMancuerna?"MANCUERNA":"PESO ("+unit+")"),
-            ex.isMancuerna
-              ?React.createElement("div",{style:{display:"flex",gap:4}},
-                MANCUERNAS.map(function(v){return React.createElement("button",{key:v,onClick:function(){setWeightI(String(v));},style:{flex:1,padding:"7px 2px",background:parseFloat(weightI)===v?C.accent:C.card,border:"none",borderRadius:8,cursor:"pointer",color:parseFloat(weightI)===v?"#000":C.textSec,fontWeight:700,fontSize:13}},v);}))
-              :React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8}},
-                React.createElement("button",{onClick:function(){setWeightI(function(v){return String(Math.max(0,Math.round((parseFloat(v||0)-2.5)*10)/10));});},style:SBtn},"−"),
-                React.createElement("input",{value:weightI,onChange:function(e){setWeightI(e.target.value);},style:NIn,type:"number",inputMode:"decimal"}),
-                React.createElement("button",{onClick:function(){setWeightI(function(v){return String(Math.round((parseFloat(v||0)+2.5)*10)/10);});},style:SBtn},"+"))),
-          React.createElement("div",{style:{flex:1,background:C.surface,borderRadius:16,padding:13,border:"1px solid "+(liveReps>0?liveColor+"66":C.border),transition:"border-color 0.3s"}},
-            React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:7}},
-              React.createElement("p",{style:{fontSize:10,color:C.textMut,letterSpacing:1.5,fontWeight:700}},ex.isTime?"SEGUNDOS":"REPS"),
-              liveReps>0&&React.createElement("span",{style:{fontSize:9,color:liveColor,fontWeight:700}},liveReps<range.min?"Bajo":liveReps>=range.max?"Techo":"OK")),
-            React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8}},
-              React.createElement("button",{onClick:function(){setRepsI(function(v){return String(Math.max(1,parseInt(v||0)-1));});},style:SBtn},"−"),
-              React.createElement("input",{value:repsI,onChange:function(e){setRepsI(e.target.value);},style:Object.assign({},NIn,{color:liveReps>0?liveColor:C.text,transition:"color 0.2s"}),type:"number",inputMode:"numeric"}),
-              React.createElement("button",{onClick:function(){setRepsI(function(v){return String(parseInt(v||0)+1);});},style:SBtn},"+")))),
-        React.createElement("input",{value:noteI,onChange:function(e){setNoteI(e.target.value);},placeholder:"Anadir nota...",style:{width:"100%",background:C.surface,border:"1px solid "+C.border,borderRadius:12,padding:"10px 14px",color:C.text,fontSize:13,outline:"none",marginBottom:10}}),
-        ex.cues&&ex.cues.length>0&&React.createElement("div",{style:{background:C.surface,borderRadius:14,marginBottom:10,border:"1px solid "+C.border,overflow:"hidden"}},
-          React.createElement("button",{onClick:function(){setShowCues(function(c){return !c;});},style:{width:"100%",background:"none",border:"none",padding:"11px 16px",display:"flex",justifyContent:"space-between",cursor:"pointer",color:C.textSec,alignItems:"center"}},
-            React.createElement("span",{style:{fontSize:11,letterSpacing:1.5,fontWeight:700}},"TECNICA"),
-            React.createElement("span",{style:{fontSize:12,transform:showCues?"rotate(180deg)":"none",transition:"transform 0.2s"}},"▼")),
-          showCues&&React.createElement("div",{style:{padding:"0 16px 12px"}},
-            ex.cues.map(function(c,i){return React.createElement("div",{key:i,style:{display:"flex",gap:10,marginBottom:6}},
-              React.createElement("div",{style:{width:4,height:4,borderRadius:99,background:C.accent,flexShrink:0,marginTop:7}}),
-              React.createElement("p",{style:{margin:0,fontSize:13,color:C.textSec,lineHeight:1.55}},c));}))),
-        React.createElement("button",{onClick:logSet,style:Object.assign({},PBtn,{fontSize:15,marginBottom:10})},setIdx+1<ex.sets?"Serie completada  ✓":"Terminar ejercicio  ★"),
-        currentSetLogs.length>0&&React.createElement("div",{style:{background:C.surface,borderRadius:14,border:"1px solid "+C.border,overflow:"hidden"}},
-          React.createElement("p",{style:{fontSize:10,color:C.textMut,letterSpacing:1.5,fontWeight:700,padding:"10px 14px 7px"}},"SERIES REGISTRADAS"),
-          currentSetLogs.map(function(l,i){
-            const r2=REP_RANGES[ex.category||"compound_secondary"];
-            const sc=l.reps<r2.min?C.red:l.reps>=r2.max?C.accent:C.yellow;
-            return React.createElement("div",{key:i,style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 14px",borderTop:"1px solid "+C.border}},
-              React.createElement("p",{style:{fontSize:13,color:C.textSec,fontWeight:500}},"Serie "+(i+1)),
-              React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8}},
-                React.createElement("div",{style:{width:6,height:6,borderRadius:99,background:sc,flexShrink:0}}),
-                React.createElement("div",{style:{textAlign:"right"}},
-                  React.createElement("p",{style:{fontSize:15,fontWeight:700,color:i===currentSetLogs.length-1?C.text:C.textSec}},l.weight>0?l.weight+unit+" x "+l.reps+(ex.isTime?"s":" reps"):(ex.isTime?l.reps+"s":l.reps+" reps")),
-                  l.note&&React.createElement("p",{style:{fontSize:11,color:C.textMut,marginTop:1}},'"'+l.note+'"'))));}))),
-      React.createElement("div",{style:{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,background:C.bg,borderTop:"1px solid "+C.border,zIndex:30,paddingBottom:"env(safe-area-inset-bottom,0px)"}},
-        React.createElement("button",{onClick:function(){setShowExList(function(v){return !v;});},style:{width:"100%",background:"none",border:"none",padding:"7px 0 4px",display:"flex",alignItems:"center",justifyContent:"center",gap:6,cursor:"pointer",color:C.textSec}},
-          React.createElement("span",{style:{fontSize:11,fontWeight:700,letterSpacing:1}},showExList?"CERRAR":"EJERCICIOS"),
-          React.createElement("span",{style:{fontSize:11,transform:showExList?"rotate(180deg)":"none",transition:"transform 0.25s"}},"▲"),
-          React.createElement("span",{style:{fontSize:11,color:C.accent,fontWeight:600}},completedInSession+"/"+activeS.exercises.length)),
-        showExList&&React.createElement("div",{style:{maxHeight:210,overflowY:"auto",borderTop:"1px solid "+C.border}},
-          activeS.exercises.map(function(e,i){
-            const logs=allSetLogs[i]||[];const done=logs.length>=e.sets;const isActive=i===exIdx;const gc2=GC[e.group]||C.accent;
-            return React.createElement("div",{key:i,onClick:function(){jumpToEx(i);},style:{display:"flex",alignItems:"center",gap:12,padding:"10px 16px",background:isActive?C.accent+"10":C.bg,borderBottom:"1px solid "+C.border,cursor:"pointer"}},
-              React.createElement("div",{style:{width:38,height:38,borderRadius:9,overflow:"hidden",flexShrink:0,border:"2px solid "+(isActive?C.accent:done?C.accent+"66":C.border)}},
-                React.createElement("img",{src:e.image||gImg(e.name),alt:"",style:{width:"100%",height:"100%",objectFit:"cover"}})),
-              React.createElement("div",{style:{flex:1,minWidth:0}},
-                React.createElement("p",{style:{fontSize:13,fontWeight:isActive?700:500,color:isActive?C.accent:C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},e.name),
-                React.createElement("p",{style:{fontSize:10,color:C.textMut,marginTop:1}},e.sets+"x"+REP_RANGES[e.category||"compound_secondary"].label+" · ",React.createElement("span",{style:{color:gc2}},e.group))),
-              React.createElement("div",{style:{flexShrink:0}},
-                done&&React.createElement("div",{style:{width:20,height:20,borderRadius:99,background:C.accent,display:"flex",alignItems:"center",justifyContent:"center"}},React.createElement("span",{style:{fontSize:10,color:"#000",fontWeight:900}},"✓")),
-                !done&&logs.length>0&&React.createElement("p",{style:{fontSize:11,color:C.orange,fontWeight:600}},logs.length+"/"+e.sets),
-                isActive&&!done&&logs.length===0&&React.createElement("div",{style:{width:6,height:6,borderRadius:99,background:C.accent}})));
-          })),
-        React.createElement("div",{ref:thumbRef,style:{display:"flex",gap:6,padding:"5px 14px 10px",overflowX:"auto"}},
-          activeS.exercises.map(function(e,i){
-            const logs=allSetLogs[i]||[];const done=logs.length>=e.sets;const isActive=i===exIdx;
-            return React.createElement("div",{key:i,"data-idx":i,onClick:function(){jumpToEx(i);},style:{flexShrink:0,position:"relative",cursor:"pointer"}},
-              React.createElement("div",{style:{width:isActive?50:40,height:isActive?50:40,borderRadius:isActive?13:10,overflow:"hidden",border:"2px solid "+(isActive?C.accent:done?C.accent+"55":C.border),transition:"all 0.25s",opacity:done&&!isActive?0.5:1}},
-                React.createElement("img",{src:e.image||gImg(e.name),alt:"",style:{width:"100%",height:"100%",objectFit:"cover"}})),
-              done&&React.createElement("div",{style:{position:"absolute",top:-3,right:-3,width:13,height:13,borderRadius:99,background:C.accent,display:"flex",alignItems:"center",justifyContent:"center"}},React.createElement("span",{style:{fontSize:8,color:"#000",fontWeight:900}},"✓")),
-              isActive&&React.createElement("div",{style:{position:"absolute",bottom:-5,left:"50%",transform:"translateX(-50%)",width:4,height:4,borderRadius:99,background:C.accent}}));
-          }))),
-      progModal&&(function(){
-        const analysis=analysePerformance(progModal.logs,progModal.ex);
-        const statusColor=analysis.status==="max"?C.accent:analysis.status==="below"?C.red:C.yellow;
-        return React.createElement("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,0.9)",display:"flex",alignItems:"flex-end",zIndex:100,backdropFilter:"blur(12px)"}},
-          React.createElement("div",{style:{background:C.surface,borderRadius:"24px 24px 0 0",padding:"24px 20px 52px",width:"100%",maxWidth:430,border:"1px solid "+C.border,maxHeight:"85vh",overflowY:"auto"}},
-            React.createElement("p",{style:{fontSize:11,color:C.textMut,fontWeight:700,letterSpacing:1.5,marginBottom:16,textAlign:"center"}},"ANALISIS DEL ENTRENADOR"),
-            React.createElement("div",{style:{background:(analysis.status==="max"?C.accent:analysis.status==="below"?C.red:C.yellow)+"12",border:"1px solid "+statusColor+"44",borderRadius:18,padding:"16px 18px",marginBottom:16}},
-              React.createElement("div",{style:{display:"flex",alignItems:"center",gap:10,marginBottom:10}},
-                React.createElement("span",{style:{fontSize:24}},analysis.emoji),
-                React.createElement("div",null,
-                  React.createElement("p",{style:{fontSize:10,color:statusColor,fontWeight:700,letterSpacing:1.5}},analysis.decision),
-                  React.createElement("p",{style:{fontSize:16,fontWeight:800,marginTop:1}},"Analisis del entrenador"))),
-              React.createElement("p",{style:{fontSize:13,color:C.textSec,lineHeight:1.6,marginBottom:12}},analysis.message),
-              React.createElement("div",{style:{display:"flex",gap:8}},
-                React.createElement("div",{style:{background:C.surface,borderRadius:10,padding:"8px 12px",border:"1px solid "+C.border}},
-                  React.createElement("p",{style:{fontSize:9,color:C.textMut,fontWeight:700,letterSpacing:1,marginBottom:3}},"PROXIMO PESO"),
-                  React.createElement("p",{style:{fontSize:16,fontWeight:800,color:statusColor}},analysis.nextWeight>0?analysis.nextWeight+"kg":"Corporal")),
-                React.createElement("div",{style:{background:C.surface,borderRadius:10,padding:"8px 12px",border:"1px solid "+C.border}},
-                  React.createElement("p",{style:{fontSize:9,color:C.textMut,fontWeight:700,letterSpacing:1,marginBottom:3}},"OBJETIVO REPS"),
-                  React.createElement("p",{style:{fontSize:16,fontWeight:800,color:statusColor}},analysis.nextReps+" reps")))),
-            nextEx&&React.createElement("div",{style:{background:C.card,borderRadius:14,padding:"11px 14px",marginBottom:16,display:"flex",gap:12,alignItems:"center"}},
-              React.createElement("div",{style:{width:42,height:42,borderRadius:10,overflow:"hidden",flexShrink:0}},
-                React.createElement("img",{src:nextEx.image||gImg(nextEx.name),alt:"",style:{width:"100%",height:"100%",objectFit:"cover"}})),
-              React.createElement("div",null,
-                React.createElement("p",{style:{fontSize:10,color:C.textMut,fontWeight:700,letterSpacing:1,marginBottom:3}},"SIGUIENTE EJERCICIO"),
-                React.createElement("p",{style:{fontSize:14,fontWeight:700}},nextEx.name),
-                React.createElement("p",{style:{fontSize:11,color:C.textSec,marginTop:1}},getTag(nextEx).l+" · "+REP_RANGES[nextEx.category||"compound_secondary"].label))),
-            React.createElement("button",{onClick:handleProg,style:PBtn},nextEx?"Continuar  →":"Finalizar sesion  🏆")));
-      })());
+    // Live set traffic light
+    const liveReps=parseInt(repsI)||0;
+    let liveColor=C.textMut;
+    if(liveReps>0){ if(liveReps<range.min) liveColor=C.red; else if(liveReps>=range.max) liveColor=C.accent; else liveColor=C.yellow; }
+
+    return(
+      <div style={{minHeight:"100vh",background:C.bg,paddingBottom:130}}>
+        {/* Topbar */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"52px 18px 10px",position:"sticky",top:0,background:C.bg,zIndex:20}}>
+          <button onClick={()=>{setTimerOn(false);setScreen("home");}} style={IBtn}>✕</button>
+          <div style={{textAlign:"center"}}><p style={{fontSize:13,fontWeight:700}}>{activeS.name}</p><p style={{fontSize:11,color:C.textSec,marginTop:2}}>{exIdx+1} de {activeS.exercises.length}</p></div>
+          <div style={{background:C.surface,borderRadius:12,padding:"6px 12px",border:`1px solid ${C.border}`}}><p style={{fontSize:15,fontWeight:700,color:C.accent}}>{fmt(totalSecs)}</p></div>
+        </div>
+        {/* Progress bar */}
+        <div style={{height:2,background:C.border,margin:"0 18px"}}><div style={{height:"100%",background:C.accent,width:`${pct}%`,transition:"width 0.5s",borderRadius:99}}/></div>
+        {/* Hero image */}
+        <div style={{position:"relative",height:210,margin:"10px 0 0",overflow:"hidden"}}>
+          <img src={imgUrl} alt={ex.name} style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"center top"}}/>
+          <div style={{position:"absolute",inset:0,background:`linear-gradient(to top,${C.bg} 0%,rgba(12,12,14,0.4) 55%,transparent 100%)`}}/>
+          <div style={{position:"absolute",bottom:14,left:18,right:18}}>
+            <div style={{display:"flex",gap:6,marginBottom:7,flexWrap:"wrap"}}>
+              <Chip label={ex.group} color={gc}/>
+              <Chip label={tag.l} color={tag.c}/>
+              <Chip label={range.label} color={C.textMut}/>
+            </div>
+            <p style={{fontSize:26,fontWeight:900,lineHeight:1,letterSpacing:-0.5}}>{ex.name}</p>
+            <p style={{fontSize:12,color:"rgba(255,255,255,0.5)",marginTop:4}}>{ex.muscle}</p>
+          </div>
+        </div>
+        {/* Rest timer */}
+        {restOn&&restSecs>0&&(
+          <div style={{margin:"10px 18px 0",background:C.surface,border:`1px solid ${C.accent}44`,borderRadius:18,padding:"12px 16px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div><p style={{fontSize:10,color:C.textMut,letterSpacing:1.5,fontWeight:700,marginBottom:3}}>DESCANSO</p><p style={{fontSize:34,fontWeight:800,color:C.accent,lineHeight:1}}>{fmt(restSecs)}</p></div>
+              <div style={{display:"flex",gap:10,alignItems:"center"}}>
+                <svg width="42" height="42" style={{transform:"rotate(-90deg)"}}>
+                  <circle cx="21" cy="21" r="17" fill="none" stroke={C.border} strokeWidth="3"/>
+                  <circle cx="21" cy="21" r="17" fill="none" stroke={C.accent} strokeWidth="3" strokeDasharray={`${2*Math.PI*17}`} strokeDashoffset={`${2*Math.PI*17*(restSecs/(ex.rest||90))}`} style={{transition:"stroke-dashoffset 1s linear"}}/>
+                </svg>
+                <button onClick={()=>{setRestOn(false);setRestSecs(0);}} style={{...GBtn,width:"auto",padding:"6px 12px",fontSize:12}}>Saltar</button>
+              </div>
+            </div>
+            {nextEx&&(
+              <div style={{marginTop:10,paddingTop:10,borderTop:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:10}}>
+                <div style={{width:36,height:36,borderRadius:8,overflow:"hidden",flexShrink:0}}><img src={nextEx.image||gImg(nextEx.name)} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/></div>
+                <div style={{flex:1,minWidth:0}}><p style={{fontSize:10,color:C.textMut,fontWeight:700,letterSpacing:1,marginBottom:2}}>SIGUIENTE</p><p style={{fontSize:13,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{nextEx.name}</p></div>
+                <Chip label={getTag(nextEx).l} color={getTag(nextEx).c}/>
+              </div>
+            )}
+          </div>
+        )}
+        {/* Sets dots */}
+        <div style={{display:"flex",justifyContent:"center",gap:5,padding:"10px 0"}}>
+          {Array.from({length:ex.sets}).map((_,i)=>{const isLogged=(allSetLogs[exIdx]||[]).length>i;return <div key={i} style={{width:i===setIdx?26:8,height:8,borderRadius:99,background:isLogged?C.accent:i===setIdx?C.accent:C.border,transition:"all 0.3s"}}/>;  })}
+        </div>
+        <div style={{padding:"4px 18px 16px"}}>
+          {/* Serie label + live indicator */}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+            <p style={{fontSize:20,fontWeight:800}}>Serie {setIdx+1}<span style={{color:C.textMut,fontWeight:400}}> / {ex.sets}</span></p>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <p style={{fontSize:12,color:C.textSec}}>Objetivo: {range.label}</p>
+            </div>
+          </div>
+          {/* Inputs */}
+          <div style={{display:"flex",gap:10,marginBottom:10}}>
+            {!ex.isGoma&&!ex.isCuerpo&&(
+              <div style={{flex:1.3,background:C.surface,borderRadius:16,padding:13,border:`1px solid ${C.border}`}}>
+                <p style={{fontSize:10,color:C.textMut,letterSpacing:1.5,fontWeight:700,marginBottom:7}}>{ex.isMancuerna?"MANCUERNA":`PESO (${unit})`}</p>
+                {ex.isMancuerna?(
+                  <div style={{display:"flex",gap:4}}>{MANCUERNAS.map(v=><button key={v} onClick={()=>setWeightI(String(v))} style={{flex:1,padding:"7px 2px",background:parseFloat(weightI)===v?C.accent:C.card,border:"none",borderRadius:8,cursor:"pointer",color:parseFloat(weightI)===v?"#000":C.textSec,fontWeight:700,fontSize:13}}>{v}</button>)}</div>
+                ):(
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <button onClick={()=>setWeightI(v=>String(Math.max(0,Math.round((parseFloat(v||0)-2.5)*10)/10)))} style={SBtn}>−</button>
+                    <input value={weightI} onChange={e=>setWeightI(e.target.value)} style={NIn} type="number" inputMode="decimal"/>
+                    <button onClick={()=>setWeightI(v=>String(Math.round((parseFloat(v||0)+2.5)*10)/10))} style={SBtn}>+</button>
+                  </div>
+                )}
+              </div>
+            )}
+            <div style={{flex:1,background:C.surface,borderRadius:16,padding:13,border:`1px solid ${liveReps>0?liveColor+"66":C.border}`,transition:"border-color 0.3s"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:7}}>
+                <p style={{fontSize:10,color:C.textMut,letterSpacing:1.5,fontWeight:700}}>{ex.isTime?"SEGUNDOS":"REPS"}</p>
+                {liveReps>0&&<span style={{fontSize:9,color:liveColor,fontWeight:700}}>{liveReps<range.min?"Bajo":liveReps>=range.max?"¡Techo!":"En rango"}</span>}
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <button onClick={()=>setRepsI(v=>String(Math.max(1,parseInt(v||0)-1)))} style={SBtn}>−</button>
+                <input value={repsI} onChange={e=>setRepsI(e.target.value)} style={{...NIn,color:liveReps>0?liveColor:C.text,transition:"color 0.2s"}} type="number" inputMode="numeric"/>
+                <button onClick={()=>setRepsI(v=>String(parseInt(v||0)+1))} style={SBtn}>+</button>
+              </div>
+            </div>
+          </div>
+          <input value={noteI} onChange={e=>setNoteI(e.target.value)} placeholder="Añadir nota..." style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"10px 14px",color:C.text,fontSize:13,outline:"none",marginBottom:10}}/>
+          {ex.cues&&ex.cues.length>0&&(
+            <div style={{background:C.surface,borderRadius:14,marginBottom:10,border:`1px solid ${C.border}`,overflow:"hidden"}}>
+              <button onClick={()=>setShowCues(c=>!c)} style={{width:"100%",background:"none",border:"none",padding:"11px 16px",display:"flex",justifyContent:"space-between",cursor:"pointer",color:C.textSec,alignItems:"center"}}>
+                <span style={{fontSize:11,letterSpacing:1.5,fontWeight:700}}>TÉCNICA</span>
+                <span style={{fontSize:12,transform:showCues?"rotate(180deg)":"none",transition:"transform 0.2s"}}>▼</span>
+              </button>
+              {showCues&&<div style={{padding:"0 16px 12px"}}>
+                {ex.cues.map((c,i)=><div key={i} style={{display:"flex",gap:10,marginBottom:6}}><div style={{width:4,height:4,borderRadius:99,background:C.accent,flexShrink:0,marginTop:7}}/><p style={{margin:0,fontSize:13,color:C.textSec,lineHeight:1.55}}>{c}</p></div>)}
+              </div>}
+            </div>
+          )}
+          <button onClick={logSet} style={{...PBtn,fontSize:15,marginBottom:10}}>{setIdx+1<ex.sets?"Serie completada  ✓":"Terminar ejercicio  ★"}</button>
+          {/* Logged sets */}
+          {currentSetLogs.length>0&&(
+            <div style={{background:C.surface,borderRadius:14,border:`1px solid ${C.border}`,overflow:"hidden"}}>
+              <p style={{fontSize:10,color:C.textMut,letterSpacing:1.5,fontWeight:700,padding:"10px 14px 7px"}}>SERIES REGISTRADAS</p>
+              {currentSetLogs.map((l,i)=>{
+                const r=REP_RANGES[ex.category||"compound_secondary"];
+                const sc=l.reps<r.min?C.red:l.reps>=r.max?C.accent:C.yellow;
+                return(
+                  <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 14px",borderTop:`1px solid ${C.border}`}}>
+                    <p style={{fontSize:13,color:C.textSec,fontWeight:500}}>Serie {i+1}</p>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <div style={{width:6,height:6,borderRadius:99,background:sc,flexShrink:0}}/>
+                      <div style={{textAlign:"right"}}>
+                        <p style={{fontSize:15,fontWeight:700,color:i===currentSetLogs.length-1?C.text:C.textSec}}>{l.weight>0?`${l.weight}${unit} × `:""}{l.reps}{ex.isTime?"s":" reps"}</p>
+                        {l.note&&<p style={{fontSize:11,color:C.textMut,marginTop:1}}>"{l.note}"</p>}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* ── BOTTOM NAV ── */}
+        <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,background:C.bg,borderTop:`1px solid ${C.border}`,zIndex:30,paddingBottom:"env(safe-area-inset-bottom,0px)"}}>
+          <button onClick={()=>setShowExList(v=>!v)} style={{width:"100%",background:"none",border:"none",padding:"7px 0 4px",display:"flex",alignItems:"center",justifyContent:"center",gap:6,cursor:"pointer",color:C.textSec}}>
+            <span style={{fontSize:11,fontWeight:700,letterSpacing:1}}>{showExList?"CERRAR":"EJERCICIOS"}</span>
+            <span style={{fontSize:11,transform:showExList?"rotate(180deg)":"none",transition:"transform 0.25s"}}>▲</span>
+            <span style={{fontSize:11,color:C.accent,fontWeight:600}}>{completedInSession}/{activeS.exercises.length}</span>
+          </button>
+          {showExList&&(
+            <div style={{maxHeight:210,overflowY:"auto",borderTop:`1px solid ${C.border}`}}>
+              {activeS.exercises.map((e,i)=>{
+                const logs=allSetLogs[i]||[];const done=logs.length>=e.sets;const isActive=i===exIdx;const gc2=GC[e.group]||C.accent;
+                return(
+                  <div key={i} onClick={()=>jumpToEx(i)} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 16px",background:isActive?`${C.accent}10`:C.bg,borderBottom:`1px solid ${C.border}`,cursor:"pointer"}}>
+                    <div style={{width:38,height:38,borderRadius:9,overflow:"hidden",flexShrink:0,border:`2px solid ${isActive?C.accent:done?C.accent+"66":C.border}`}}><img src={e.image||gImg(e.name)} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/></div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <p style={{fontSize:13,fontWeight:isActive?700:500,color:isActive?C.accent:C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{e.name}</p>
+                      <p style={{fontSize:10,color:C.textMut,marginTop:1}}>{e.sets}×{REP_RANGES[e.category||"compound_secondary"].label} · <span style={{color:gc2}}>{e.group}</span></p>
+                    </div>
+                    <div style={{flexShrink:0}}>
+                      {done&&<div style={{width:20,height:20,borderRadius:99,background:C.accent,display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:10,color:"#000",fontWeight:900}}>✓</span></div>}
+                      {!done&&logs.length>0&&<p style={{fontSize:11,color:C.orange,fontWeight:600}}>{logs.length}/{e.sets}</p>}
+                      {isActive&&!done&&logs.length===0&&<div style={{width:6,height:6,borderRadius:99,background:C.accent}}/>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {/* Thumbnails */}
+          <div ref={thumbRef} style={{display:"flex",gap:6,padding:"5px 14px 10px",overflowX:"auto"}}>
+            {activeS.exercises.map((e,i)=>{
+              const logs=allSetLogs[i]||[];const done=logs.length>=e.sets;const isActive=i===exIdx;
+              return(
+                <div key={i} data-idx={i} onClick={()=>jumpToEx(i)} style={{flexShrink:0,position:"relative",cursor:"pointer"}}>
+                  <div style={{width:isActive?50:40,height:isActive?50:40,borderRadius:isActive?13:10,overflow:"hidden",border:`2px solid ${isActive?C.accent:done?C.accent+"55":C.border}`,transition:"all 0.25s",opacity:done&&!isActive?0.5:1}}>
+                    <img src={e.image||gImg(e.name)} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                  </div>
+                  {done&&<div style={{position:"absolute",top:-3,right:-3,width:13,height:13,borderRadius:99,background:C.accent,display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:8,color:"#000",fontWeight:900}}>✓</span></div>}
+                  {isActive&&<div style={{position:"absolute",bottom:-5,left:"50%",transform:"translateX(-50%)",width:4,height:4,borderRadius:99,background:C.accent}}/>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── COACH MODAL ── */}
+        {progModal&&(()=>{
+          const analysis=analysePerformance(progModal.logs,progModal.ex);
+          return(
+            <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.9)",display:"flex",alignItems:"flex-end",zIndex:100,backdropFilter:"blur(12px)"}}>
+              <div style={{background:C.surface,borderRadius:"24px 24px 0 0",padding:"24px 20px 52px",width:"100%",maxWidth:430,border:`1px solid ${C.border}`,maxHeight:"85vh",overflowY:"auto"}}>
+                <p style={{fontSize:11,color:C.textMut,fontWeight:700,letterSpacing:1.5,marginBottom:16,textAlign:"center"}}>ANÁLISIS DEL ENTRENADOR</p>
+                {/* Coach card */}
+                {analysis&&<CoachCard analysis={analysis} unit={unit}/>}
+                {/* Next exercise preview */}
+                {nextEx&&(
+                  <div style={{background:C.card,borderRadius:14,padding:"11px 14px",marginTop:14,display:"flex",gap:12,alignItems:"center"}}>
+                    <div style={{width:42,height:42,borderRadius:10,overflow:"hidden",flexShrink:0}}><img src={nextEx.image||gImg(nextEx.name)} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/></div>
+                    <div><p style={{fontSize:10,color:C.textMut,fontWeight:700,letterSpacing:1,marginBottom:3}}>SIGUIENTE EJERCICIO</p><p style={{fontSize:14,fontWeight:700}}>{nextEx.name}</p><p style={{fontSize:11,color:C.textSec,marginTop:1}}>{getTag(nextEx).l} · {REP_RANGES[nextEx.category||"compound_secondary"].label}</p></div>
+                  </div>
+                )}
+                <button onClick={handleProg} style={{...PBtn,marginTop:16}}>
+                  {nextEx?"Continuar  →":"Finalizar sesión  🏆"}
+                </button>
+              </div>
+            </div>
+          );
+        })()}
+      </div>
+    );
   }
 
   // ── DONE ──────────────────────────────────────────────────────
-  if(screen==="done"){
-    return React.createElement("div",{style:{minHeight:"100vh",background:C.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",padding:"0 30px"}},
-      React.createElement("div",{style:{fontSize:72,marginBottom:20}},"🏆"),
-      React.createElement("p",{style:{fontSize:13,color:C.textSec,fontWeight:600,letterSpacing:1.5,marginBottom:8}},"SESION COMPLETADA"),
-      React.createElement("p",{style:{fontSize:52,fontWeight:900,lineHeight:0.9,letterSpacing:-1}},fmt(totalSecs)),
-      React.createElement("p",{style:{fontSize:13,color:C.textMut,marginTop:8,marginBottom:4}},"tiempo de entrenamiento"),
-      React.createElement("div",{style:{display:"flex",alignItems:"center",gap:6,marginTop:16,marginBottom:48}},
-        React.createElement("span",{style:{fontSize:20}},"🔥"),
-        React.createElement("p",{style:{fontSize:18,fontWeight:700,color:C.accent}},"Racha de "+streak.count+" "+(streak.count===1?"dia":"dias"))),
-      React.createElement("button",{onClick:function(){setScreen("home");},style:Object.assign({},PBtn,{maxWidth:300,width:"100%"})},"Volver al inicio"));
-  }
+  if(screen==="done") return(
+    <div style={{minHeight:"100vh",background:C.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",padding:"0 30px"}}>
+      <div style={{fontSize:72,marginBottom:20}}>🏆</div>
+      <p style={{fontSize:13,color:C.textSec,fontWeight:600,letterSpacing:1.5,marginBottom:8}}>SESIÓN COMPLETADA</p>
+      <p style={{fontSize:52,fontWeight:900,lineHeight:0.9,letterSpacing:-1}}>{fmt(totalSecs)}</p>
+      <p style={{fontSize:13,color:C.textMut,marginTop:8,marginBottom:4}}>tiempo de entrenamiento</p>
+      <div style={{display:"flex",alignItems:"center",gap:6,marginTop:16,marginBottom:48}}><span style={{fontSize:20}}>🔥</span><p style={{fontSize:18,fontWeight:700,color:C.accent}}>Racha de {streak.count} {streak.count===1?"día":"días"}</p></div>
+      <button onClick={()=>setScreen("home")} style={{...PBtn,maxWidth:300,width:"100%"}}>Volver al inicio</button>
+    </div>
+  );
 
   return null;
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
 </script>
 </body>
 </html>
