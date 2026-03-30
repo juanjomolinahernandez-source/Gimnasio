@@ -38,7 +38,7 @@ const C = {
   yellow:"#FFD60A",
 };
 const GC = { Pecho:C.blue,Espalda:C.purple,Hombros:C.orange,Piernas:"#FF6B6B",Biceps:C.accent,Triceps:C.accentDim,Core:C.green };
-const SK = "sb_v7";
+const SK = "sb_v8";
 const MANCUERNAS = [5,7.5,10,12.5];
 const fmt = s=>`${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
 const vib = ms=>{ try{navigator.vibrate&&navigator.vibrate(ms);}catch{} };
@@ -335,9 +335,14 @@ function App(){
   const [settings,setSettings]=useState(false);
   const [reorderSi,setReorderSi]=useState(null);
   const [showExList,setShowExList]=useState(false);
+  const [bodyMetrics,setBodyMetrics]=useState(()=>store.bodyMetrics||{});
+  const [bodyTab,setBodyTab]=useState("weight");
+  const [showBodyModal,setShowBodyModal]=useState(false);
+  const [bodyInputs,setBodyInputs]=useState({weight:"",waist:"",chest:"",hip:""});
+  const [mainTab,setMainTab]=useState("train");
   const mRef=useRef(); const rRef=useRef(); const thumbRef=useRef();
 
-  useEffect(()=>{ saveStore(p=>({...p,sessions,logData,streak,savedWS,sesDates,unit})); },[sessions,logData,streak,savedWS,sesDates,unit]);
+  useEffect(()=>{ saveStore(p=>({...p,sessions,logData,streak,savedWS,sesDates,unit,bodyMetrics})); },[sessions,logData,streak,savedWS,sesDates,unit,bodyMetrics]);
   useEffect(()=>{ if(timerOn) mRef.current=setInterval(()=>setTotalSecs(s=>s+1),1000); else clearInterval(mRef.current); return()=>clearInterval(mRef.current); },[timerOn]);
   useEffect(()=>{
     if(restOn){ rRef.current=setInterval(()=>setRestSecs(s=>{ if(s<=1){clearInterval(rRef.current);setRestOn(false);vib(500);return 0;} return s-1; }),1000); }
@@ -719,6 +724,8 @@ function App(){
             ))}
           </div>
         )}
+        <div style={{height:72}}/>
+        <TabBar active={mainTab} onChange={t=>setMainTab(t)}/>
       </div>
     );
   }
@@ -934,6 +941,17 @@ function App(){
     );
   }
 
+  // ── BODY SCREEN ───────────────────────────────────────────────
+  if(screen==="home"&&mainTab==="body") return(
+    <BodyScreen
+      bodyMetrics={bodyMetrics} setBodyMetrics={setBodyMetrics}
+      bodyTab={bodyTab} setBodyTab={setBodyTab}
+      showBodyModal={showBodyModal} setShowBodyModal={setShowBodyModal}
+      bodyInputs={bodyInputs} setBodyInputs={setBodyInputs}
+      onTabChange={t=>setMainTab(t)}
+    />
+  );
+
   // ── DONE ──────────────────────────────────────────────────────
   if(screen==="done") return(
     <div style={{minHeight:"100vh",background:C.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",padding:"0 30px"}}>
@@ -949,7 +967,202 @@ function App(){
   return null;
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+// ── BOTTOM TAB BAR ────────────────────────────────────────────
+function TabBar({active,onChange}){
+  const tabs=[{id:"train",icon:"🏋️",label:"ENTRENO"},{id:"body",icon:"📊",label:"CUERPO"}];
+  return(
+    <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,background:"#0C0C0E",borderTop:"1px solid #26262A",zIndex:50,display:"flex",paddingBottom:"env(safe-area-inset-bottom,0px)"}}>
+      {tabs.map(t=>(
+        <button key={t.id} onClick={()=>onChange(t.id)} style={{flex:1,background:"none",border:"none",padding:"11px 0 9px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
+          <span style={{fontSize:20}}>{t.icon}</span>
+          <span style={{fontSize:10,fontWeight:700,letterSpacing:0.5,color:active===t.id?"#C8FF00":"#4A4A56"}}>{t.label}</span>
+          {active===t.id&&<div style={{width:18,height:2,background:"#C8FF00",borderRadius:99}}/>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ── BODY METRICS SCREEN ───────────────────────────────────────
+const BMET=[
+  {id:"weight",label:"Peso",unit:"kg",icon:"⚖️",color:"#4D9FFF",desc:"En ayunas por la mañana"},
+  {id:"waist", label:"Cintura",unit:"cm",icon:"📏",color:"#FF8C4D",desc:"A la altura del ombligo"},
+  {id:"chest", label:"Pecho",unit:"cm",icon:"💪",color:"#A78BFA",desc:"Máximo perímetro del pecho"},
+  {id:"hip",   label:"Cadera",unit:"cm",icon:"📐",color:"#FF6B6B",desc:"Máximo perímetro de cadera"},
+];
+
+function BodyChart({history,color,unit}){
+  if(!history||history.length<2) return <p style={{textAlign:"center",padding:"24px",color:"#4A4A56",fontSize:13}}>Registra al menos 2 semanas para ver la gráfica</p>;
+  const vals=history.map(h=>h.value);
+  const mn=Math.min(...vals),mx=Math.max(...vals),rng=mx-mn||1;
+  const W=300,H=100,P=22;
+  const pts=vals.map((v,i)=>[P+(i/(vals.length-1))*(W-P*2),H-P-((v-mn)/rng)*(H-P*2)]);
+  const ln=pts.map((p,i)=>`${i===0?"M":"L"}${p[0]},${p[1]}`).join(" ");
+  const ar=ln+` L${pts[pts.length-1][0]},${H-P} L${pts[0][0]},${H-P} Z`;
+  const trend=vals[vals.length-1]-vals[0];
+  return(
+    <div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`}>
+        <defs><linearGradient id="bcg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity="0.3"/><stop offset="100%" stopColor={color} stopOpacity="0"/></linearGradient></defs>
+        <path d={ar} fill="url(#bcg)"/>
+        <path d={ln} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+        {pts.map((p,i)=>(
+          <g key={i}>
+            <circle cx={p[0]} cy={p[1]} r="4" fill={color} stroke="#0C0C0E" strokeWidth="2"/>
+            <text x={p[0]} y={p[1]-10} textAnchor="middle" fill={color} fontSize="9" fontFamily="Inter" fontWeight="700">{vals[i]}{unit}</text>
+            <text x={p[0]} y={H-3} textAnchor="middle" fill="#4A4A56" fontSize="8" fontFamily="Inter">{history[i].date}</text>
+          </g>
+        ))}
+      </svg>
+      {vals.length>=2&&<p style={{textAlign:"center",fontSize:11,marginTop:4,color:trend===0?"#4A4A56":trend<0?"#00E676":"#FF4D4D",fontWeight:600}}>
+        {trend===0?"Sin cambio":(trend>0?"+":"")+trend.toFixed(1)+unit+" desde el inicio"}
+      </p>}
+    </div>
+  );
+}
+
+function BodyScreen({bodyMetrics,setBodyMetrics,bodyTab,setBodyTab,showBodyModal,setShowBodyModal,bodyInputs,setBodyInputs,onTabChange}){
+  const activeMet=BMET.find(m=>m.id===bodyTab)||BMET[0];
+  const history=bodyMetrics[bodyTab]||[];
+  const latest=history.length>0?history[history.length-1]:null;
+  const prev=history.length>1?history[history.length-2]:null;
+  const diff=latest&&prev?latest.value-prev.value:null;
+  const isGood=diff===null?null:bodyTab==="chest"?diff>0:diff<0;
+
+  function saveEntry(){
+    const today=new Date().toLocaleDateString("es-ES",{day:"2-digit",month:"2-digit",year:"2-digit"});
+    const updated={...bodyMetrics};
+    let saved=false;
+    BMET.forEach(m=>{
+      const v=parseFloat(bodyInputs[m.id]);
+      if(v>0){
+        const existing=updated[m.id]||[];
+        const filtered=existing.filter(e=>e.date!==today);
+        updated[m.id]=[...filtered,{value:v,date:today,raw:new Date().toISOString()}].sort((a,b)=>new Date(a.raw)-new Date(b.raw));
+        saved=true;
+      }
+    });
+    if(saved){setBodyMetrics(updated);setShowBodyModal(false);setBodyInputs({weight:"",waist:"",chest:"",hip:""});}
+  }
+
+  const msgs={
+    weight:{good:"El peso está bajando. Vas bien, mantén el déficit calórico.",neutral:"El peso se mantiene. Revisa la alimentación.",bad:"El peso ha subido. Puede ser músculo, revisa la dieta."},
+    waist:{good:"La cintura reduce. Señal clara de pérdida de grasa visceral.",neutral:"La cintura estable. El proceso puede ser más lento.",bad:"La cintura ha subido. Revisa el déficit calórico."},
+    chest:{good:"El pecho crece. Señal de ganancia muscular real.",neutral:"El pecho estable. Progresa en cargas.",bad:"El pecho ha reducido. Puede ser pérdida de grasa."},
+    hip:{good:"La cadera reduce. Pérdida de grasa en curso.",neutral:"La cadera estable.",bad:"La cadera ha subido. Revisa la alimentación."},
+  };
+
+  return(
+    <div style={{minHeight:"100vh",background:"#0C0C0E",paddingBottom:100}}>
+      <div style={{padding:"56px 22px 0",display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+        <div>
+          <p style={{fontSize:14,color:"#8E8E9A",fontWeight:500}}>Control corporal</p>
+          <p style={{fontSize:26,fontWeight:800,marginTop:4,lineHeight:1.2}}>Evolución<br/>corporal</p>
+          <p style={{fontSize:12,color:"#8E8E9A",marginTop:4}}>Una vez por semana, misma hora</p>
+        </div>
+        <button onClick={()=>setShowBodyModal(true)} style={{background:"#C8FF00",border:"none",borderRadius:12,width:42,height:42,fontSize:22,color:"#000",cursor:"pointer",fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",marginTop:8}}>+</button>
+      </div>
+      {/* Metric tabs */}
+      <div style={{display:"flex",gap:8,padding:"20px 22px 0",overflowX:"auto"}}>
+        {BMET.map(m=>{
+          const mhist=bodyMetrics[m.id]||[];const mlast=mhist.length>0?mhist[mhist.length-1]:null;const active=bodyTab===m.id;
+          return(
+            <button key={m.id} onClick={()=>setBodyTab(m.id)} style={{flexShrink:0,background:active?m.color+"22":"#141416",border:`1px solid ${active?m.color+"88":"#26262A"}`,borderRadius:14,padding:"10px 14px",cursor:"pointer",textAlign:"left"}}>
+              <p style={{fontSize:16,marginBottom:2}}>{m.icon}</p>
+              <p style={{fontSize:12,fontWeight:700,color:active?m.color:"#8E8E9A"}}>{m.label}</p>
+              <p style={{fontSize:11,color:active?m.color:"#4A4A56",fontWeight:600}}>{mlast?`${mlast.value}${m.unit}`:"—"}</p>
+            </button>
+          );
+        })}
+      </div>
+      <div style={{padding:"20px 22px 0"}}>
+        {/* Summary */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:20}}>
+          {[
+            {l:"ACTUAL",v:latest?`${latest.value} ${activeMet.unit}`:"—",c:activeMet.color},
+            {l:"ANTERIOR",v:prev?`${prev.value} ${activeMet.unit}`:"—",c:"#8E8E9A"},
+            {l:"CAMBIO",v:diff!==null?(diff===0?"=":(diff>0?"+":"")+diff.toFixed(1)+activeMet.unit):"—",c:diff===null?"#4A4A56":diff===0?"#8E8E9A":isGood?"#00E676":"#FF4D4D"},
+          ].map(x=>(
+            <div key={x.l} style={{background:"#141416",border:"1px solid #26262A",borderRadius:14,padding:"12px 10px",textAlign:"center"}}>
+              <p style={{fontSize:9,color:"#4A4A56",fontWeight:700,letterSpacing:1.5,marginBottom:4}}>{x.l}</p>
+              <p style={{fontSize:16,fontWeight:800,color:x.c}}>{x.v}</p>
+            </div>
+          ))}
+        </div>
+        {/* Chart */}
+        <p style={{fontSize:11,color:"#4A4A56",fontWeight:700,letterSpacing:1.5,marginBottom:12}}>GRÁFICA — {activeMet.label.toUpperCase()}</p>
+        <div style={{background:"#141416",border:"1px solid #26262A",borderRadius:16,padding:"16px 12px",marginBottom:20,overflowX:"auto"}}>
+          <BodyChart history={history} color={activeMet.color} unit={activeMet.unit}/>
+        </div>
+        {/* Insight */}
+        {history.length>=2&&(()=>{
+          const total=history[history.length-1].value-history[0].value;
+          const good=bodyTab==="chest"?total>0:total<0;
+          const neutral=Math.abs(total)<0.5;
+          const msg=(msgs[bodyTab]||msgs.weight)[neutral?"neutral":good?"good":"bad"];
+          const col=neutral?"#FFD60A":good?"#00E676":"#FF4D4D";
+          return(
+            <div style={{background:col+"12",border:`1px solid ${col}44`,borderRadius:14,padding:"12px 16px",marginBottom:20,display:"flex",gap:10,alignItems:"flex-start"}}>
+              <span style={{fontSize:20}}>{neutral?"📊":good?"✅":"⚠️"}</span>
+              <div>
+                <p style={{fontSize:13,fontWeight:700,color:col,marginBottom:3}}>{neutral?"Sin cambio significativo":good?"¡Progreso positivo!":"Revisión recomendada"}</p>
+                <p style={{fontSize:12,color:"#8E8E9A",lineHeight:1.5}}>{msg}</p>
+              </div>
+            </div>
+          );
+        })()}
+        {/* Table */}
+        <p style={{fontSize:11,color:"#4A4A56",fontWeight:700,letterSpacing:1.5,marginBottom:12}}>HISTORIAL — {activeMet.label.toUpperCase()}</p>
+        {history.length===0&&<p style={{color:"#4A4A56",fontSize:13,textAlign:"center",padding:"20px 0"}}>Sin registros. Pulsa + para añadir.</p>}
+        {[...history].reverse().map((h,i)=>{
+          const realIdx=history.length-1-i;
+          const prevH=history[realIdx-1];
+          const d2=prevH?h.value-prevH.value:null;
+          const good2=d2===null?null:bodyTab==="chest"?d2>0:d2<0;
+          return(
+            <div key={i} style={{background:"#141416",border:"1px solid #26262A",borderRadius:14,padding:"13px 16px",marginBottom:8,display:"flex",alignItems:"center",gap:12}}>
+              <div style={{flex:1}}>
+                <p style={{fontSize:18,fontWeight:700,color:activeMet.color}}>{h.value} {activeMet.unit}</p>
+                <p style={{fontSize:12,color:"#4A4A56",marginTop:2}}>{h.date}</p>
+              </div>
+              {d2!==null&&<span style={{fontSize:12,fontWeight:700,color:good2?"#00E676":d2===0?"#4A4A56":"#FF4D4D"}}>{d2===0?"=":(d2>0?"+":"")+d2.toFixed(1)+activeMet.unit}</span>}
+              <button onClick={()=>{
+                const updated=(bodyMetrics[bodyTab]||[]).filter((_,idx)=>idx!==realIdx);
+                setBodyMetrics({...bodyMetrics,[bodyTab]:updated});
+              }} style={{background:"none",border:"none",color:"#4A4A56",cursor:"pointer",fontSize:16,padding:"4px"}}>✕</button>
+            </div>
+          );
+        })}
+      </div>
+      {/* Add modal */}
+      {showBodyModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",display:"flex",alignItems:"flex-end",zIndex:100,backdropFilter:"blur(10px)"}}>
+          <div style={{background:"#141416",borderRadius:"24px 24px 0 0",padding:"26px 22px 52px",width:"100%",maxWidth:430,border:"1px solid #26262A"}}>
+            <p style={{fontSize:20,fontWeight:800,marginBottom:4}}>Registrar medidas</p>
+            <p style={{fontSize:13,color:"#8E8E9A",marginBottom:20}}>Rellena solo las que midas hoy</p>
+            {BMET.map(m=>(
+              <div key={m.id} style={{marginBottom:14}}>
+                <p style={{fontSize:11,color:m.color,fontWeight:700,letterSpacing:1.5,marginBottom:6}}>{m.icon} {m.label.toUpperCase()} ({m.unit}) · {m.desc}</p>
+                <div style={{background:"#1C1C1F",border:`1px solid ${bodyInputs[m.id]?m.color+"44":"#26262A"}`,borderRadius:12,display:"flex",alignItems:"center",padding:"0 14px"}}>
+                  <input value={bodyInputs[m.id]} onChange={e=>setBodyInputs(p=>({...p,[m.id]:e.target.value}))}
+                    placeholder={m.id==="weight"?"Ej: 75.5":m.id==="waist"?"Ej: 86":m.id==="chest"?"Ej: 98":"Ej: 95"}
+                    style={{flex:1,background:"none",border:"none",padding:"13px 0",color:"#fff",fontSize:16,fontWeight:600,outline:"none"}}
+                    type="number" inputMode="decimal"/>
+                  <span style={{fontSize:13,color:"#4A4A56",fontWeight:600}}>{m.unit}</span>
+                </div>
+              </div>
+            ))}
+            <div style={{display:"flex",gap:10,marginTop:8}}>
+              <button onClick={()=>{setShowBodyModal(false);setBodyInputs({weight:"",waist:"",chest:"",hip:""}); }} style={{flex:1,padding:"14px",background:"transparent",border:"1px solid #26262A",borderRadius:14,color:"#8E8E9A",fontWeight:600,fontSize:14,cursor:"pointer"}}>Cancelar</button>
+              <button onClick={saveEntry} style={{flex:2,padding:"15px",background:"#C8FF00",border:"none",borderRadius:14,color:"#000",fontWeight:700,fontSize:15,cursor:"pointer"}}>Guardar</button>
+            </div>
+          </div>
+        </div>
+      )}
+      <TabBar active="body" onChange={onTabChange}/>
+    </div>
+  );
+}
 </script>
 </body>
 </html>
