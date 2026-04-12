@@ -77,7 +77,7 @@ function analysePerformance(logs, ex) {
     status = "below";
     emoji = "🔴";
     const newW = ex.isMancuerna
-      ? Math.max(MANCUERNAS[0], MANCUERNAS[MANCUERNAS.indexOf(weight)-1]||weight)
+      ? Math.max(0, Math.round((weight - 2.5)*10)/10)
       : Math.max(0, Math.round((weight - 2.5)*10)/10);
     nextWeight = newW;
     nextReps = range.min;
@@ -89,8 +89,7 @@ function analysePerformance(logs, ex) {
     emoji = "🟢";
     let newW;
     if(ex.isMancuerna) {
-      const idx = MANCUERNAS.indexOf(weight);
-      newW = idx!==-1 && idx<MANCUERNAS.length-1 ? MANCUERNAS[idx+1] : weight;
+      newW = Math.round((weight+2.5)*10)/10;
     } else if(ex.isCuerpo||ex.isGoma||ex.category==="accessory") {
       newW = weight; // body weight — just note achievement
     } else {
@@ -196,27 +195,37 @@ const mkEx = (id,ov={}) => {
   return ex;
 };
 
-// SESSIONS — Barra piernas → Barra empuje → Barra tirón → Mancuernas → Gomas/Corporal
+// SESSIONS — Barra primero → Mancuernas → Corporal al final
 const DEF_SESSIONS = [
   { id:"FA", name:"Full Body A", subtitle:"Fuerza base", icon:"A",
     exercises:[
-      mkEx("lb16"), mkEx("lb06"), mkEx("lb01"), mkEx("lb11"), mkEx("lb07"),
-      mkEx("lb12"), mkEx("lb23"), mkEx("lb27"), mkEx("lb29"),
+      mkEx("lb16"),  // BARRA: Sentadilla — quad + glúteo + core
+      mkEx("lb17"),  // BARRA: Peso Muerto Rumano — isquios + glúteo
+      mkEx("lb01"),  // BARRA: Press Banca — pecho + tríceps
+      mkEx("lb11"),  // BARRA: Press Militar — hombros + tríceps
+      mkEx("lb07"),  // BARRA: Remo con Barra — dorsal + bíceps
+      mkEx("lb29"),  // CORPORAL: Plancha — core
     ]
   },
   { id:"FB", name:"Full Body B", subtitle:"Hipertrofia", icon:"B",
     exercises:[
-      mkEx("lb17"), mkEx("lb20"), mkEx("lb02"), mkEx("lb22"),
-      mkEx("lb09"), mkEx("lb04"), mkEx("lb13"), mkEx("lb28"), mkEx("lb31"),
+      mkEx("lb20"),  // BARRA: Hip Thrust — glúteo + isquio
+      mkEx("lb22"),  // BARRA: Curl Barra — bíceps
+      mkEx("lb04"),  // MANCUERNA: Press Inclinado Mancuernas — pecho alto
+      mkEx("lb12"),  // MANCUERNA: Press Arnold — hombros completo
+      mkEx("lb31"),  // MANCUERNA: Russian Twist — oblicuos + core
+      mkEx("lb08"),  // CORPORAL: Dominadas — dorsal + bíceps
     ]
   },
   { id:"FC", name:"Full Body C", subtitle:"Volumen + Core", icon:"C",
     exercises:[
-      mkEx("lb16",{name:"Sentadilla Pausa",reps:6,rest:150,cues:["Igual que sentadilla","Pausa 2s abajo","Explota hacia arriba"]}),
-      mkEx("lb07",{name:"Remo Barra Prono",reps:8}),
-      mkEx("lb01",{name:"Press Banca Agarre Estrecho",reps:10,rest:90,cues:["Manos a anchura hombros","Codos pegados al cuerpo","Énfasis en tríceps"]}),
-      mkEx("lb20"), mkEx("lb08"), mkEx("lb18"), mkEx("lb03"),
-      mkEx("lb19"), mkEx("lb24"), mkEx("lb15"), mkEx("lb30"),
+      mkEx("lb01",{name:"Press Banca Agarre Estrecho",reps:10,rest:90,cues:["Manos a anchura de hombros","Codos pegados al cuerpo","Énfasis en tríceps"]}), // BARRA
+      mkEx("lb18"),  // MANCUERNA: Sentadilla Goblet — quad + glúteo
+      mkEx("lb19"),  // MANCUERNA: Zancadas — piernas completo
+      mkEx("lb09"),  // MANCUERNA: Remo Mancuerna — dorsal + bíceps
+      mkEx("lb13"),  // MANCUERNA: Elevaciones Laterales — deltoides lateral
+      mkEx("lb26"),  // CORPORAL: Fondos en Paralelas — tríceps + pecho bajo
+      mkEx("lb30"),  // CORPORAL: Crunch Banca Inclinada — abdomen
     ]
   },
 ];
@@ -803,7 +812,11 @@ function App(){
               <div style={{flex:1.3,background:C.surface,borderRadius:16,padding:13,border:`1px solid ${C.border}`}}>
                 <p style={{fontSize:10,color:C.textMut,letterSpacing:1.5,fontWeight:700,marginBottom:7}}>{ex.isMancuerna?"MANCUERNA":`PESO (${unit})`}</p>
                 {ex.isMancuerna?(
-                  <div style={{display:"flex",gap:4}}>{MANCUERNAS.map(v=><button key={v} onClick={()=>setWeightI(String(v))} style={{flex:1,padding:"7px 2px",background:parseFloat(weightI)===v?C.accent:C.card,border:"none",borderRadius:8,cursor:"pointer",color:parseFloat(weightI)===v?"#000":C.textSec,fontWeight:700,fontSize:13}}>{v}</button>)}</div>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <button onClick={()=>setWeightI(v=>String(Math.max(0,Math.round((parseFloat(v||0)-2.5)*10)/10)))} style={SBtn}>−</button>
+                    <input value={weightI} onChange={e=>setWeightI(e.target.value)} style={NIn} type="number" inputMode="decimal"/>
+                    <button onClick={()=>setWeightI(v=>String(Math.round((parseFloat(v||0)+2.5)*10)/10))} style={SBtn}>+</button>
+                  </div>
                 ):(
                   <div style={{display:"flex",alignItems:"center",gap:8}}>
                     <button onClick={()=>setWeightI(v=>String(Math.max(0,Math.round((parseFloat(v||0)-2.5)*10)/10)))} style={SBtn}>−</button>
